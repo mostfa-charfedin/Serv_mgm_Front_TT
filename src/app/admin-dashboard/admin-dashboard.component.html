@@ -1,0 +1,495 @@
+<div class="page-header">
+  <mat-icon class="page-icon">admin_panel_settings</mat-icon>
+  <div>
+    <h2>Tableau de Bord Admin</h2>
+    <p class="subtitle">Gérer les OS, Types de Serveur et Plateformes</p>
+  </div>
+</div>
+
+<mat-tab-group animationDuration="200ms" class="admin-tabs">
+
+  <!-- ===== OS TAB ===== -->
+  <mat-tab label="OS">
+    <ng-template matTabContent>
+      <div class="tab-content">
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="card-icon">computer</mat-icon>
+            <mat-card-title>{{ editingOS ? 'Modifier OS' : 'Ajouter un OS' }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="inline-form">
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Nom de l'OS</mat-label>
+                <input matInput [(ngModel)]="osForm.name" placeholder="ex: Ubuntu 22.04">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Version</mat-label>
+                <input matInput [(ngModel)]="osForm.version" placeholder="ex: 22.04">
+              </mat-form-field>
+              <button mat-raised-button color="primary" (click)="saveOS()" [disabled]="!osForm.name">
+                <mat-icon>{{ editingOS ? 'save' : 'add' }}</mat-icon>
+                {{ editingOS ? 'Modifier' : 'Ajouter' }}
+              </button>
+              <button mat-stroked-button *ngIf="editingOS" (click)="cancelOSEdit()">Annuler</button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="table-card">
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="w-100 search-field">
+              <mat-label>Rechercher OS</mat-label>
+              <input matInput [(ngModel)]="osSearch" placeholder="Rechercher par nom ou version">
+            </mat-form-field>
+
+            <div *ngIf="loadingOS" class="spinner-center"><mat-spinner diameter="40"></mat-spinner></div>
+            <div class="table-responsive" *ngIf="!loadingOS">
+              <table mat-table [dataSource]="filteredOperatingSystems" class="w-100">
+              <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>Nom</th>
+                <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+              </ng-container>
+              <ng-container matColumnDef="version">
+                <th mat-header-cell *matHeaderCellDef>Version</th>
+                <td mat-cell *matCellDef="let row">{{ row.version || '—' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let row">
+                  <button mat-icon-button color="primary" (click)="editOS(row)" title="Edit"><mat-icon>edit</mat-icon></button>
+                  <button mat-icon-button color="warn" (click)="deleteOS(row.id)" title="Delete"><mat-icon>delete</mat-icon></button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="osColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: osColumns;"></tr>
+              </table>
+            </div>
+            <p *ngIf="!loadingOS && filteredOperatingSystems.length === 0" class="empty-hint">Aucun OS trouvé.</p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </ng-template>
+  </mat-tab>
+
+  <!-- ===== SERVER TYPES TAB ===== -->
+  <mat-tab label="Types de Serveur">
+    <ng-template matTabContent>
+      <div class="tab-content">
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="card-icon">category</mat-icon>
+            <mat-card-title>{{ editingST ? 'Modifier Type' : 'Ajouter un Type' }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="inline-form">
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Nom du Type</mat-label>
+                <input matInput [(ngModel)]="stForm.name" placeholder="ex: Serveur Web">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="flex-2">
+                <mat-label>Description</mat-label>
+                <input matInput [(ngModel)]="stForm.description" placeholder="Description optionnelle">
+              </mat-form-field>
+              <button mat-raised-button color="primary" (click)="saveST()" [disabled]="!stForm.name">
+                <mat-icon>{{ editingST ? 'save' : 'add' }}</mat-icon>
+                {{ editingST ? 'Modifier' : 'Ajouter' }}
+              </button>
+              <button mat-stroked-button *ngIf="editingST" (click)="cancelSTEdit()">Annuler</button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="table-card">
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="w-100 search-field">
+              <mat-label>Rechercher types</mat-label>
+              <input matInput [(ngModel)]="stSearch" placeholder="Rechercher par type ou description">
+            </mat-form-field>
+
+            <div *ngIf="loadingST" class="spinner-center"><mat-spinner diameter="40"></mat-spinner></div>
+            <div class="table-responsive" *ngIf="!loadingST">
+              <table mat-table [dataSource]="filteredServerTypes" class="w-100">
+              <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>Nom</th>
+                <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+              </ng-container>
+              <ng-container matColumnDef="description">
+                <th mat-header-cell *matHeaderCellDef>Description</th>
+                <td mat-cell *matCellDef="let row">{{ row.description || '—' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let row">
+                  <button mat-icon-button color="primary" (click)="editST(row)" title="Edit"><mat-icon>edit</mat-icon></button>
+                  <button mat-icon-button color="warn" (click)="deleteST(row.id)" title="Delete"><mat-icon>delete</mat-icon></button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="stColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: stColumns;"></tr>
+              </table>
+            </div>
+            <p *ngIf="!loadingST && filteredServerTypes.length === 0" class="empty-hint">Aucun type trouvé.</p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </ng-template>
+  </mat-tab>
+
+  <!-- ===== PLATFORMS TAB ===== -->
+  <mat-tab label="Plateformes">
+    <ng-template matTabContent>
+      <div class="tab-content">
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="card-icon">domain</mat-icon>
+            <mat-card-title>{{ editingPlatform ? 'Modifier Plateforme' : 'Ajouter une Plateforme' }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="inline-form">
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Nom de la Plateforme</mat-label>
+                <input matInput [(ngModel)]="platformForm.name" placeholder="ex: DataCenter Europe">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="flex-2">
+                <mat-label>Description</mat-label>
+                <input matInput [(ngModel)]="platformForm.description" placeholder="Description optionnelle">
+              </mat-form-field>
+              <button mat-raised-button color="primary" (click)="savePlatform()" [disabled]="!platformForm.name">
+                <mat-icon>{{ editingPlatform ? 'save' : 'add' }}</mat-icon>
+                {{ editingPlatform ? 'Modifier' : 'Ajouter' }}
+              </button>
+              <button mat-stroked-button *ngIf="editingPlatform" (click)="cancelPlatformEdit()">Annuler</button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="table-card">
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="w-100 search-field">
+              <mat-label>Rechercher plateformes</mat-label>
+              <input matInput [(ngModel)]="platformSearch" (input)="onPlatformSearchChange()" placeholder="Rechercher par nom ou description">
+            </mat-form-field>
+
+            <div *ngIf="loadingPlatform" class="spinner-center"><mat-spinner diameter="40"></mat-spinner></div>
+            <div class="table-responsive" *ngIf="!loadingPlatform">
+              <table mat-table [dataSource]="paginatedPlatforms" class="w-100">
+              <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>Nom</th>
+                <td mat-cell *matCellDef="let row"><strong>{{ row.name }}</strong></td>
+              </ng-container>
+              <ng-container matColumnDef="description">
+                <th mat-header-cell *matHeaderCellDef>Description</th>
+                <td mat-cell *matCellDef="let row">{{ row.description || '—' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let row">
+                  <button mat-icon-button color="primary" (click)="editPlatform(row)" title="Edit"><mat-icon>edit</mat-icon></button>
+                  <button mat-icon-button color="warn" (click)="deletePlatform(row.id)" title="Delete"><mat-icon>delete</mat-icon></button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="platformColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: platformColumns;"></tr>
+              </table>
+            </div>
+
+            <!-- Platform Pagination -->
+            <mat-paginator *ngIf="!loadingPlatform && filteredPlatforms.length > 0"
+              [length]="filteredPlatforms.length"
+              [pageSize]="platformPageSize"
+              [pageSizeOptions]="[5, 10, 25, 50]"
+              (page)="onPlatformPage($event)">
+            </mat-paginator>
+
+            <p *ngIf="!loadingPlatform && filteredPlatforms.length === 0" class="empty-hint">Aucune plateforme trouvée.</p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </ng-template>
+  </mat-tab>
+
+  <!-- ===== CLUSTERS TAB ===== -->
+  <mat-tab label="Replication / Cluster">
+    <ng-template matTabContent>
+      <div class="tab-content">
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="card-icon">layers</mat-icon>
+            <mat-card-title>{{ editingCluster ? 'Modifier Cluster' : 'Ajouter Replication / Cluster' }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="inline-form">
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Nom du Replication / Cluster</mat-label>
+                <input matInput [(ngModel)]="clusterForm.name" placeholder="ex: Always On SQL - Production">
+              </mat-form-field>
+              
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Plateforme <span class="required-asterisk">*</span></mat-label>
+                <mat-select [(ngModel)]="clusterForm.platformId" required>
+                  <mat-option *ngFor="let p of platforms" [value]="p.id">{{ p.name }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+
+              <mat-form-field appearance="outline" class="flex-2">
+                <mat-label>Description</mat-label>
+                <input matInput [(ngModel)]="clusterForm.description" placeholder="ex: Replication synchrone Always On">
+              </mat-form-field>
+
+              <button mat-raised-button color="primary" (click)="saveCluster()" [disabled]="!clusterForm.name || !clusterForm.platformId">
+                <mat-icon>{{ editingCluster ? 'save' : 'add' }}</mat-icon>
+                {{ editingCluster ? 'Enregistrer' : 'Créer' }}
+              </button>
+              <button mat-stroked-button *ngIf="editingCluster" (click)="cancelClusterEdit()">Annuler</button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="table-card">
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="w-100 search-field">
+              <mat-label>Rechercher Replication / Cluster</mat-label>
+              <input matInput [(ngModel)]="clusterSearch" (input)="onClusterSearchChange()" placeholder="Rechercher par nom, plateforme ou description">
+            </mat-form-field>
+
+            <div *ngIf="loadingCluster" class="spinner-center"><mat-spinner diameter="40"></mat-spinner></div>
+            <div class="table-responsive" *ngIf="!loadingCluster">
+              <table mat-table [dataSource]="paginatedClusters" class="w-100">
+              <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>Nom Replication / Cluster</th>
+                <td mat-cell *matCellDef="let row"><strong>{{ row.name }}</strong></td>
+              </ng-container>
+              <ng-container matColumnDef="platform">
+                <th mat-header-cell *matHeaderCellDef>Plateforme</th>
+                <td mat-cell *matCellDef="let row">
+                   <span class="status-badge" style="background: #eef2ff; color: #4338ca; padding: 4px 10px; border-radius: 20px; font-weight: 600;">
+                     {{ row.platformName }}
+                   </span>
+                </td>
+              </ng-container>
+              <ng-container matColumnDef="description">
+                <th mat-header-cell *matHeaderCellDef>Description</th>
+                <td mat-cell *matCellDef="let row" style="color: #64748b; font-size: 13px;">{{ row.description || '—' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let row">
+                  <button mat-icon-button color="primary" (click)="editCluster(row)" title="Modifier"><mat-icon>edit</mat-icon></button>
+                  <button mat-icon-button color="warn" (click)="deleteCluster(row.id)" title="Supprimer"><mat-icon>delete</mat-icon></button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="clusterColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: clusterColumns;"></tr>
+              </table>
+            </div>
+
+            <mat-paginator *ngIf="!loadingCluster && filteredClusters.length > 0"
+              [length]="filteredClusters.length"
+              [pageSize]="clusterPageSize"
+              [pageSizeOptions]="[5, 10, 25, 50]"
+              (page)="onClusterPage($event)">
+            </mat-paginator>
+
+            <p *ngIf="!loadingCluster && filteredClusters.length === 0" class="empty-hint">Aucun Replication / Cluster trouvé.</p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </ng-template>
+  </mat-tab>
+
+
+  <!-- ===== AUDIT TRAIL TAB (ADMIN ONLY) ===== -->
+  <mat-tab label="SGBD & Releases">
+    <ng-template matTabContent>
+      <div class="tab-content">
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="card-icon">storage</mat-icon>
+            <mat-card-title>{{ editingSgbd ? 'Modifier SGBD' : 'Ajouter un SGBD' }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="inline-form">
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Nom du SGBD</mat-label>
+                <input matInput [(ngModel)]="sgbdForm.name" placeholder="ex: Oracle">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Release (optionnel)</mat-label>
+                <input matInput [(ngModel)]="sgbdForm.releaseName" placeholder="ex: 21c">
+              </mat-form-field>
+              <button mat-raised-button color="primary" (click)="saveSgbd()" [disabled]="!sgbdForm.name">
+                <mat-icon>{{ editingSgbd ? 'save' : 'add' }}</mat-icon>
+                {{ editingSgbd ? 'Modifier' : 'Ajouter' }}
+              </button>
+              <button mat-stroked-button *ngIf="editingSgbd" (click)="cancelSgbdEdit()">Annuler</button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="table-card">
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="w-100 search-field">
+              <mat-label>Rechercher SGBD</mat-label>
+              <input matInput [(ngModel)]="sgbdSearch" placeholder="Rechercher par nom">
+            </mat-form-field>
+
+            <div *ngIf="loadingSgbd" class="spinner-center"><mat-spinner diameter="40"></mat-spinner></div>
+            <div class="table-responsive" *ngIf="!loadingSgbd">
+              <table mat-table [dataSource]="filteredSgbds" class="w-100">
+              <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>Nom</th>
+                <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let row">
+                  <button mat-icon-button color="primary" (click)="editSgbd(row)" title="Edit"><mat-icon>edit</mat-icon></button>
+                  <button mat-icon-button color="warn" (click)="deleteSgbd(row.id)" title="Delete"><mat-icon>delete</mat-icon></button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="sgbdColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: sgbdColumns;"></tr>
+              </table>
+            </div>
+            <p *ngIf="!loadingSgbd && filteredSgbds.length === 0" class="empty-hint">Aucun SGBD trouvé.</p>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="card-icon">tag</mat-icon>
+            <mat-card-title>{{ editingSgbdRelease ? 'Modifier Release' : 'Ajouter un Release' }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="inline-form">
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>SGBD <span class="required-asterisk">*</span></mat-label>
+                <mat-select [(ngModel)]="sgbdReleaseForm.sgbdId" required>
+                  <mat-option *ngFor="let s of sgbds" [value]="s.id">{{ s.name }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Nom du Release</mat-label>
+                <input matInput [(ngModel)]="sgbdReleaseForm.name" placeholder="ex: 21c">
+              </mat-form-field>
+              <button mat-raised-button color="primary" (click)="saveSgbdRelease()" [disabled]="!sgbdReleaseForm.sgbdId || !sgbdReleaseForm.name">
+                <mat-icon>{{ editingSgbdRelease ? 'save' : 'add' }}</mat-icon>
+                {{ editingSgbdRelease ? 'Modifier' : 'Ajouter' }}
+              </button>
+              <button mat-stroked-button *ngIf="editingSgbdRelease" (click)="cancelSgbdReleaseEdit()">Annuler</button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="table-card">
+          <mat-card-content>
+            <div class="inline-form">
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Filtrer par SGBD</mat-label>
+                <mat-select [(ngModel)]="sgbdReleaseFilterId" (selectionChange)="onSgbdReleaseFilterChange()">
+                  <mat-option [value]="null">— Aucun —</mat-option>
+                  <mat-option *ngFor="let s of sgbds" [value]="s.id">{{ s.name }}</mat-option>
+                </mat-select>
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="flex-2">
+                <mat-label>Rechercher release</mat-label>
+                <input matInput [(ngModel)]="sgbdReleaseSearch" placeholder="Rechercher par nom">
+              </mat-form-field>
+            </div>
+
+            <div *ngIf="loadingSgbdRelease" class="spinner-center"><mat-spinner diameter="40"></mat-spinner></div>
+            <div class="table-responsive" *ngIf="!loadingSgbdRelease">
+              <table mat-table [dataSource]="filteredSgbdReleases" class="w-100">
+              <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>Release</th>
+                <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let row">
+                  <button mat-icon-button color="primary" (click)="editSgbdRelease(row)" title="Edit"><mat-icon>edit</mat-icon></button>
+                  <button mat-icon-button color="warn" (click)="deleteSgbdRelease(row.id)" title="Delete"><mat-icon>delete</mat-icon></button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="sgbdReleaseColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: sgbdReleaseColumns;"></tr>
+              </table>
+            </div>
+            <p *ngIf="!loadingSgbdRelease && filteredSgbdReleases.length === 0" class="empty-hint">Aucun release trouvé.</p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </ng-template>
+  </mat-tab>
+
+  <mat-tab label="Environments">
+    <ng-template matTabContent>
+      <div class="tab-content">
+        <mat-card class="form-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="card-icon">public</mat-icon>
+            <mat-card-title>{{ editingEnvironment ? 'Edit Environment' : 'Add Environment' }}</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="inline-form">
+              <mat-form-field appearance="outline" class="flex-1">
+                <mat-label>Name</mat-label>
+                <input matInput [(ngModel)]="environmentForm.name" placeholder="e.g. STAGING">
+              </mat-form-field>
+              <mat-form-field appearance="outline" class="flex-2">
+                <mat-label>Description</mat-label>
+                <input matInput [(ngModel)]="environmentForm.description" placeholder="Optional description">
+              </mat-form-field>
+              <button mat-raised-button color="primary" (click)="saveEnvironment()" [disabled]="!environmentForm.name">
+                <mat-icon>{{ editingEnvironment ? 'save' : 'add' }}</mat-icon>
+                {{ editingEnvironment ? 'Update' : 'Create' }}
+              </button>
+              <button mat-stroked-button *ngIf="editingEnvironment" (click)="cancelEnvironmentEdit()">Cancel</button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="table-card">
+          <mat-card-content>
+            <mat-form-field appearance="outline" class="w-100 search-field">
+              <mat-label>Search environments</mat-label>
+              <input matInput [(ngModel)]="environmentSearch" placeholder="Search by name or description">
+            </mat-form-field>
+
+            <div *ngIf="loadingEnvironment" class="spinner-center"><mat-spinner diameter="40"></mat-spinner></div>
+            <div class="table-responsive" *ngIf="!loadingEnvironment">
+              <table mat-table [dataSource]="filteredEnvironments" class="w-100">
+              <ng-container matColumnDef="name">
+                <th mat-header-cell *matHeaderCellDef>Name</th>
+                <td mat-cell *matCellDef="let row">{{ row.name }}</td>
+              </ng-container>
+              <ng-container matColumnDef="description">
+                <th mat-header-cell *matHeaderCellDef>Description</th>
+                <td mat-cell *matCellDef="let row">{{ row.description || '—' }}</td>
+              </ng-container>
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef>Actions</th>
+                <td mat-cell *matCellDef="let row">
+                  <button mat-icon-button color="primary" (click)="editEnvironment(row)" title="Edit"><mat-icon>edit</mat-icon></button>
+                  <button mat-icon-button color="warn" (click)="deleteEnvironment(row.id)" title="Delete"><mat-icon>delete</mat-icon></button>
+                </td>
+              </ng-container>
+              <tr mat-header-row *matHeaderRowDef="environmentColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: environmentColumns;"></tr>
+              </table>
+            </div>
+            <p *ngIf="!loadingEnvironment && filteredEnvironments.length === 0" class="empty-hint">No environments found.</p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </ng-template>
+  </mat-tab>
+
+  <mat-tab label="Audit" *ngIf="isAdmin()">
+    <ng-template matTabContent>
+      <app-audit-trail></app-audit-trail>
+    </ng-template>
+  </mat-tab>
+
+</mat-tab-group>

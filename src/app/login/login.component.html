@@ -1,0 +1,24 @@
+<div class="login-container">
+  <mat-card class="login-card">
+    <div class="logo-wrap">
+      <img src="Logo TT.png" alt="Logo TT" class="logo" />
+    </div>
+    <mat-card-header>
+      <mat-card-title>Connexion</mat-card-title>
+      <mat-card-subtitle>Server Management</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+         <mat-form-field appearance="outline" class="w-100">
+           <mat-label>Utilisateur</mat-label>
+           <input matInput formControlName="username" type="text" />
+         </mat-form-field>
+         <mat-form-field appearance="outline" class="w-100">
+           <mat-label>Mot de passe</mat-label>
+           <input matInput formControlName="password" type="password" />
+         </mat-form-field>
+         <button mat-raised-button class="w-100 login-btn" type="submit" [disabled]="loginForm.invalid">Se connecter</button>
+      </form>
+    </mat-card-content>
+  </mat-card>
+</div>

@@ -1,0 +1,148 @@
+<div class="dashboard-wrapper">
+  <div class="dash-header">
+    <div>
+      <h2>Tableau de Bord de l'Infrastructure</h2>
+      <p class="subtitle">Vue d'ensemble de vos systèmes et plateformes</p>
+    </div>
+    <div class="header-actions">
+      <button mat-raised-button color="primary" routerLink="/servers/new" *ngIf="canAddServer">
+        <mat-icon>add</mat-icon> Ajouter un Serveur
+      </button>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="spinner-center">
+    <mat-spinner diameter="50"></mat-spinner>
+  </div>
+
+  <!-- Filters Bar -->
+  <div class="dashboard-filter-bar" *ngIf="!loading">
+    <mat-form-field appearance="outline" class="filter-field search-field">
+      <mat-label>Rechercher plateformes...</mat-label>
+      <mat-icon matPrefix>search</mat-icon>
+      <input matInput [(ngModel)]="platformSearch">
+      <button matSuffix mat-icon-button *ngIf="platformSearch" (click)="clearPlatformSearch()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>Statut</mat-label>
+      <mat-select [(ngModel)]="selectedStatus" (selectionChange)="updateDynamicStats()">
+        <mat-option [value]="null">Tous les statuts ({{ countMatchingSgbdAndType }})</mat-option>
+        <mat-option value="UP">En ligne (UP) ({{ currentStatusStats['UP'] }})</mat-option>
+        <mat-option value="DOWN">Hors ligne (DOWN) ({{ currentStatusStats['DOWN'] }})</mat-option>
+        <mat-option value="MAINTENANCE">Maintenance ({{ currentStatusStats['MAINTENANCE'] }})</mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>SGBD</mat-label>
+      <mat-select [(ngModel)]="selectedSgbd" (selectionChange)="updateDynamicStats()">
+        <mat-option [value]="null">Tous les SGBD ({{ countMatchingStatusAndType }})</mat-option>
+        <mat-option *ngFor="let sgbd of currentSgbdStats" [value]="sgbd.name">
+          {{ sgbd.name }} ({{ sgbd.count }})
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>Type de Serveur</mat-label>
+      <mat-select [(ngModel)]="selectedServerType" (selectionChange)="updateDynamicStats()">
+        <mat-option [value]="null">Tous les types ({{ countMatchingStatusAndSgbd }})</mat-option>
+        <mat-option *ngFor="let st of currentServerTypeStats" [value]="st.name">
+          {{ st.name }} ({{ st.count }})
+        </mat-option>
+      </mat-select>
+    </mat-form-field>
+
+    <button mat-icon-button color="warn" class="clear-filters-mini" (click)="clearAllDashboardFilters()" *ngIf="selectedSgbd || selectedStatus || selectedServerType || platformSearch" matTooltip="Annuler tous les filtres">
+      <mat-icon>filter_alt_off</mat-icon>
+    </button>
+  </div>
+
+  <!-- BOTTOM ROW: Platforms Section -->
+  <mat-card class="platforms-card" *ngIf="!loading && platforms.length > 0">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="chart-icon plat-icon">domain</mat-icon>
+      <mat-card-title>Vos Plateformes</mat-card-title>
+      <div class="platform-counter-row" style="margin-left: auto;">
+        <span>{{ filteredPlatformsCount }} / {{ totalPlatforms }} plateforme(s)</span>
+      </div>
+    </mat-card-header>
+    <mat-card-content>
+      
+      <div class="platforms-grid">
+        <div class="platform-item" *ngFor="let platform of filteredPlatforms" (click)="openPlatformServers(platform)">
+          <div class="p-main">
+            <div class="p-header">
+              <div class="p-icon"><mat-icon>business</mat-icon></div>
+              <div class="p-info">
+                <span class="p-name">{{ platform.name }} ({{ getServerCount(platform) }} Serveurs)</span>
+                <span class="p-desc">{{ platform.description || 'Aucune description assignée' }}</span>
+              </div>
+              <mat-icon class="p-arrow">arrow_forward</mat-icon>
+            </div>
+
+            <!-- Platform Stats -->
+            <div class="p-stats">
+              <div class="stat-badge up">
+                <mat-icon>check_circle</mat-icon>
+                <span>{{ getPlatformStats(platform).up }}</span>
+              </div>
+              <div class="stat-badge down">
+                <mat-icon>cancel</mat-icon>
+                <span>{{ getPlatformStats(platform).down }}</span>
+              </div>
+              <div class="stat-badge maint">
+                <mat-icon>build</mat-icon>
+                <span>{{ getPlatformStats(platform).maint }}</span>
+              </div>
+            </div>
+
+            <ng-container *ngIf="selectedSgbd || selectedStatus || selectedServerType">
+              <ng-container *ngIf="getPlatformFilteredServers(platform) as filteredServers">
+                <div class="p-sgbd-servers">
+                  <div class="p-sgbd-title">
+                    Serveurs concernes
+                    {{ selectedStatus ? '(' + selectedStatus + ')' : '' }}
+                    {{ selectedSgbd ? '- ' + selectedSgbd : '' }}
+                    {{ selectedServerType ? '- ' + selectedServerType : '' }}
+                  </div>
+                  <div class="p-sgbd-list" *ngIf="filteredServers.length > 0; else emptySgbdServers">
+                    <a class="p-sgbd-chip" *ngFor="let server of filteredServers" [routerLink]="['/servers', server.id]" (click)="$event.stopPropagation()">
+                      <mat-icon>dns</mat-icon>
+                      <span class="p-sgbd-name">{{ getServerDisplayName(server) }}</span>
+                      <span class="p-sgbd-status" [class]="'status-' + server.status">{{ server.status }}</span>
+                    </a>
+                  </div>
+                  <ng-template #emptySgbdServers>
+                    <div class="p-sgbd-empty">Aucun serveur pour ce SGBD.</div>
+                  </ng-template>
+                </div>
+              </ng-container>
+            </ng-container>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Empty Search -->
+      <div *ngIf="filteredPlatforms.length === 0" class="empty-hint p-empty">
+        <mat-icon>search_off</mat-icon>
+        <p>Aucune plateforme ne correspond à votre recherche.</p>
+      </div>
+
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Global Empty state -->
+  <mat-card class="empty-card" *ngIf="!loading && totalServers === 0 && platforms.length === 0">
+    <mat-card-content class="empty-state">
+      <mat-icon>dns</mat-icon>
+      <h3>Bienvenue sur Server Manager</h3>
+      <p>Votre infrastructure est actuellement vide.<br>Commencez à l'organiser dès maintenant.</p>
+      <button mat-raised-button color="primary" routerLink="/servers/new" *ngIf="canAddServer">Enregistrer le premier serveur</button>
+    </mat-card-content>
+  </mat-card>
+</div>

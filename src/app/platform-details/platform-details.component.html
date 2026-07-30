@@ -1,0 +1,346 @@
+<div class="page-header">
+  <div>
+    <h2>{{ platform ? platform.name : 'Détails de la plateforme' }}</h2>
+    <p class="subtitle" *ngIf="platform">{{ platform.description || 'Aucune description fournie' }}</p>
+  </div>
+</div>
+
+<!-- Loading state -->
+<div *ngIf="loading" class="spinner-center">
+  <mat-spinner diameter="50"></mat-spinner>
+</div>
+
+<!-- Error state -->
+<mat-card class="empty-card" *ngIf="!loading && !platform">
+  <mat-card-content class="empty-state">
+    <mat-icon color="warn">error</mat-icon>
+    <h3>Plateforme non trouvée</h3>
+    <p>La plateforme que vous recherchez n'existe pas ou a été supprimée.</p>
+  </mat-card-content>
+</mat-card>
+
+<ng-container *ngIf="!loading && platform">
+  <!-- Stats Summary -->
+  <div class="stats-overview" *ngIf="platform.servers?.length > 0 || platform.clusters?.length > 0">
+     <div class="summary-pill">
+        <mat-icon>dns</mat-icon>
+        <span>{{ totalServers }} Serveurs</span>
+     </div>
+     <div class="summary-pill resource-pill">
+        <mat-icon>memory</mat-icon>
+        <div class="resource-info">
+          <span class="resource-val">{{ totalCpu }}</span>
+          <span class="resource-lbl">CPU(s)</span>
+        </div>
+     </div>
+     <div class="summary-pill resource-pill">
+        <mat-icon>memory</mat-icon>
+        <div class="resource-info">
+          <span class="resource-val">{{ formatStorage(totalRamUsed) }} / {{ formatStorage(totalRamTotal) }}</span>
+          <span class="resource-lbl">RAM Utilisée</span>
+        </div>
+     </div>
+     <div class="summary-pill resource-pill">
+        <mat-icon>storage</mat-icon>
+        <div class="resource-info">
+          <span class="resource-val">{{ formatStorage(totalDiskUsed) }} / {{ formatStorage(totalDiskMax) }}</span>
+          <span class="resource-lbl">Disque Utilisé</span>
+        </div>
+     </div>
+  </div>
+
+  <div class="platform-charts-grid" *ngIf="totalServers > 0">
+    <mat-card class="platform-chart-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="chart-icon os">terminal</mat-icon>
+        <mat-card-title>Nombre de serveurs par OS</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="platform-chart-content">
+        <canvas baseChart [data]="platformOsChartData" [options]="platformPieOptions" [type]="'doughnut'"></canvas>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="platform-chart-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="chart-icon env">public</mat-icon>
+        <mat-card-title>Repartition des serveurs par environnement</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="platform-chart-content">
+        <canvas baseChart [data]="platformEnvChartData" [options]="platformPieOptions" [type]="'doughnut'"></canvas>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="platform-chart-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="chart-icon sgbd">storage</mat-icon>
+        <mat-card-title>Repartition des serveurs par SGBD</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="platform-chart-content">
+        <canvas baseChart [data]="platformSgbdChartData" [options]="platformPieOptions" [type]="'doughnut'"></canvas>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <div class="status-section" *ngIf="totalServers > 0">
+    <div class="section-title">
+      <mat-icon>pie_chart</mat-icon>
+      <h3>Etat des serveurs </h3>
+    </div>
+    <div class="platform-status-cards">
+      <div class="status-card status-total" (click)="setStatusFilter('')" [class.active]="statusFilter === ''">
+        <div class="status-icon"><mat-icon>dns</mat-icon></div>
+        <div class="status-info">
+          <span class="status-value">{{ totalServers }}</span>
+          <span class="status-label">Total</span>
+        </div>
+      </div>
+      <div class="status-card status-up" (click)="setStatusFilter('UP')" [class.active]="statusFilter === 'UP'">
+        <div class="status-icon"><mat-icon>check_circle</mat-icon></div>
+        <div class="status-info">
+          <span class="status-value">{{ upCount }}</span>
+          <span class="status-label">UP</span>
+        </div>
+      </div>
+      <div class="status-card status-down" (click)="setStatusFilter('DOWN')" [class.active]="statusFilter === 'DOWN'">
+        <div class="status-icon"><mat-icon>cancel</mat-icon></div>
+        <div class="status-info">
+          <span class="status-value">{{ downCount }}</span>
+          <span class="status-label">DOWN</span>
+        </div>
+      </div>
+      <div class="status-card status-maint" (click)="setStatusFilter('MAINTENANCE')" [class.active]="statusFilter === 'MAINTENANCE'">
+        <div class="status-icon"><mat-icon>build</mat-icon></div>
+        <div class="status-info">
+          <span class="status-value">{{ maintCount }}</span>
+          <span class="status-label">Maintenance</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Filters -->
+  <mat-card class="filters-card" *ngIf="platform.servers?.length > 0 || platform.clusters?.length > 0">
+    <mat-card-content>
+      <div class="filters-row">
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Filtrer par type serveur</mat-label>
+          <mat-icon matPrefix>category</mat-icon>
+          <mat-select [(ngModel)]="serverTypeFilter" (ngModelChange)="onServerFiltersChange()">
+            <mat-option value="">— Tous les types —</mat-option>
+            <mat-option *ngFor="let st of serverTypes" [value]="st.name">{{ st.name }}</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Filtrer par instance</mat-label>
+          <mat-icon matPrefix>memory</mat-icon>
+          <input matInput [(ngModel)]="instanceFilter" (ngModelChange)="onServerFiltersChange()" placeholder="ex: INST01">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="filter-field">
+          <mat-label>Filtrer par release</mat-label>
+          <mat-icon matPrefix>new_releases</mat-icon>
+          <input matInput [(ngModel)]="releaseFilter" (ngModelChange)="onServerFiltersChange()" placeholder="ex: 12.1.0.2">
+        </mat-form-field>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- DIRECT SERVERS -->
+  <div class="section-group" *ngIf="standaloneEnvironmentTabs.length > 0">
+    <div class="section-title">
+      <mat-icon>dns</mat-icon>
+      <h3>Serveurs Standalone (Directs)</h3>
+    </div>
+    <mat-tab-group class="env-tabs">
+      <mat-tab *ngFor="let envGroup of standaloneEnvironmentTabs" [label]="envGroup.label + ' (' + envGroup.servers.length + ')'">
+        <div class="env-tab-content">
+          <ng-container *ngFor="let group of envGroup.sgbdGroups">
+            <div class="sgbd-container">
+              <div class="section-title sgbd-title">
+                <mat-icon>storage</mat-icon>
+                <h3>{{ group.label }} ({{ group.servers.length }})</h3>
+              </div>
+              
+              <div *ngFor="let release of group.releases" class="release-group">
+                <div class="release-header">
+                  <mat-icon class="release-icon">new_releases</mat-icon>
+                  <span class="release-name">{{ release.label }}</span>
+                  <span class="release-count">({{ release.servers.length }})</span>
+                </div>
+
+                <mat-card class="servers-card">
+                  <mat-card-content>
+                    <div class="table-responsive">
+                      <table mat-table [dataSource]="release.servers" class="w-100 table-hover">
+                        <ng-container matColumnDef="hostname">
+                          <th mat-header-cell *matHeaderCellDef>Hostname</th>
+                          <td mat-cell *matCellDef="let s">
+                            <a [routerLink]="['/servers', s.id]" [queryParams]="buildServerDetailQueryParams()" class="hostname-nav"><strong>{{ s.hostname }}</strong></a>
+                          </td>
+                        </ng-container>
+                        <ng-container matColumnDef="status">
+                          <th mat-header-cell *matHeaderCellDef>Status</th>
+                          <td mat-cell *matCellDef="let s">
+                            <span class="status-indicator" [ngClass]="s.status.toLowerCase()"></span>
+                            {{ s.status }}
+                          </td>
+                        </ng-container>
+                        <ng-container matColumnDef="ips">
+                          <th mat-header-cell *matHeaderCellDef>IP Address</th>
+                          <td mat-cell *matCellDef="let s">{{ s.ipAddress || '—' }}</td>
+                        </ng-container>
+                        <ng-container matColumnDef="backup">
+                          <th mat-header-cell *matHeaderCellDef>Backup</th>
+                          <td mat-cell *matCellDef="let s">
+                            <div class="backup-cell">
+                              <mat-chip-set *ngIf="s.backupEnabled && s.backupPolicy?.backupAddress; else noBackupStandalone">
+                                <mat-chip class="chip-success">{{ s.backupPolicy?.backupAddress }}</mat-chip>
+                              </mat-chip-set>
+                              <ng-template #noBackupStandalone>
+                                <span class="backup-empty">-</span>
+                              </ng-template>
+                            </div>
+                          </td>
+                        </ng-container>
+                        <ng-container matColumnDef="alert">
+                          <th mat-header-cell *matHeaderCellDef>Alerte</th>
+                          <td mat-cell *matCellDef="let s" class="alert-col-cell">
+                            <mat-icon
+                              *ngIf="hasServerIssue(s)"
+                              class="issue-triangle"
+                              matTooltip="Serveur en alerte"
+                              aria-label="Serveur en alerte"
+                            >
+                              warning
+                            </mat-icon>
+                            <span *ngIf="!hasServerIssue(s)" class="alert-empty">-</span>
+                          </td>
+                        </ng-container>
+                        <tr mat-header-row *matHeaderRowDef="columns"></tr>
+                        <tr mat-row *matRowDef="let row; columns: columns;" [ngClass]="getServerRowClass(row)"></tr>
+                      </table>
+                    </div>
+                  </mat-card-content>
+                </mat-card>
+              </div>
+            </div>
+          </ng-container>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </div>
+
+  <!-- CLUSTERS -->
+  <div class="section-group" *ngIf="platform.clusters?.length > 0">
+    <div class="section-title">
+      <mat-icon>group_work</mat-icon>
+      <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+        <h3 style="margin: 0;">Replication / Cluster</h3>
+        <button mat-flat-button color="primary" (click)="showClusterForm = true" *ngIf="!showClusterForm">
+          <mat-icon>add</mat-icon> Nouveau Replication / Cluster
+        </button>
+      </div>
+    </div>
+
+    <!-- Cluster Form -->
+    <mat-card class="servers-card" style="margin-bottom: 24px; border: 2px dashed #6366f1;" *ngIf="showClusterForm">
+      <mat-card-header>
+        <mat-icon mat-card-avatar color="primary">add_box</mat-icon>
+        <mat-card-title>Créer un nouveau Replication / Cluster</mat-card-title>
+      </mat-card-header>
+      <mat-card-content style="padding-top: 16px;">
+        <div style="display: flex; gap: 16px; flex-wrap: wrap;">
+           <mat-form-field appearance="outline" style="flex: 1; min-width: 200px;">
+             <mat-label>Nom Replication / Cluster</mat-label>
+             <input matInput [(ngModel)]="newClusterName" placeholder="ex: AlwaysOn SQL PROD">
+           </mat-form-field>
+           <mat-form-field appearance="outline" style="flex: 2; min-width: 300px;">
+             <mat-label>Description</mat-label>
+             <input matInput [(ngModel)]="newClusterDesc" placeholder="Description facultative">
+           </mat-form-field>
+        </div>
+      </mat-card-content>
+      <mat-card-actions align="end" style="padding: 16px;">
+        <button mat-button (click)="showClusterForm = false">Annuler</button>
+        <button mat-raised-button color="primary" [disabled]="!newClusterName" (click)="createCluster()">Créer Replication / Cluster</button>
+      </mat-card-actions>
+    </mat-card>
+    
+    <div *ngFor="let clusterView of clusterViews" class="cluster-box">
+      <div class="cluster-header">
+        <div class="cluster-info">
+          <mat-icon class="cl-icon">layers</mat-icon>
+          <div>
+            <h4>{{ clusterView.cluster.name }}</h4>
+            <p class="cl-desc">{{ clusterView.cluster.description || 'Pas de description' }}</p>
+          </div>
+        </div>
+        <mat-chip-set>
+           <mat-chip>{{ clusterView.filteredCount }} Serveurs</mat-chip>
+        </mat-chip-set>
+      </div>
+      <mat-tab-group class="env-tabs">
+        <mat-tab *ngFor="let envGroup of clusterView.envTabs" [label]="envGroup.label + ' (' + envGroup.servers.length + ')'">
+          <div class="env-tab-content">
+            <ng-container *ngFor="let group of envGroup.sgbdGroups">
+              <div class="sgbd-container">
+                <div class="section-title sgbd-title">
+                  <mat-icon>storage</mat-icon>
+                  <h3>{{ group.label }} ({{ group.servers.length }})</h3>
+                </div>
+                
+                <div *ngFor="let release of group.releases" class="release-group">
+                  <div class="release-header">
+                    <mat-icon class="release-icon">new_releases</mat-icon>
+                    <span class="release-name">{{ release.label }}</span>
+                    <span class="release-count">({{ release.servers.length }})</span>
+                  </div>
+
+                  <mat-card class="servers-card nested-card">
+                    <mat-card-content>
+                      <div class="table-responsive">
+                        <table mat-table [dataSource]="release.servers" class="w-100 table-hover">
+                          <ng-container matColumnDef="hostname">
+                            <th mat-header-cell *matHeaderCellDef>Hostname</th>
+                            <td mat-cell *matCellDef="let s">
+                              <a [routerLink]="['/servers', s.id]" [queryParams]="buildServerDetailQueryParams()" class="hostname-nav"><strong>{{ s.hostname }}</strong></a>
+                              <span class="role-badge" *ngIf="s.clusterRole">{{ s.clusterRole }}</span>
+                            </td>
+                          </ng-container>
+                          <ng-container matColumnDef="status">
+                            <th mat-header-cell *matHeaderCellDef>Status</th>
+                            <td mat-cell *matCellDef="let s">
+                              <span class="status-indicator" [ngClass]="s.status.toLowerCase()"></span>
+                              {{ s.status }}
+                            </td>
+                          </ng-container>
+                          <ng-container matColumnDef="ips">
+                            <th mat-header-cell *matHeaderCellDef>IP Address</th>
+                            <td mat-cell *matCellDef="let s">{{ s.ipAddress || '—' }}</td>
+                          </ng-container>
+                          <tr mat-header-row *matHeaderRowDef="clusterColumns"></tr>
+                          <tr mat-row *matRowDef="let row; columns: clusterColumns;" [ngClass]="getServerRowClass(row)"></tr>
+                        </table>
+                      </div>
+                    </mat-card-content>
+                  </mat-card>
+                </div>
+              </div>
+            </ng-container>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </div>
+  </div>
+
+  <mat-card class="empty-card" *ngIf="standaloneEnvironmentTabs.length === 0 && clusterViews.length === 0">
+    <mat-card-content class="empty-state">
+      <mat-icon>dns</mat-icon>
+      <h3>Aucun serveur ou replication / cluster trouvé</h3>
+      <p>Cette plateforme ne contient pas encore de ressources.</p>
+      <div style="display: flex; gap: 12px; justify-content: center; margin-top: 16px;">
+        <button mat-raised-button color="primary" routerLink="/servers/new">Ajouter un serveur</button>
+        <button mat-stroked-button color="primary" (click)="showClusterForm = true">Créer un Replication / Cluster</button>
+      </div>
+    </mat-card-content>
+  </mat-card>
+</ng-container>

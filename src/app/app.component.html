@@ -1,0 +1,63 @@
+<!-- Modern Premium Navigation -->
+<mat-toolbar class="navbar glass-effect" *ngIf="authService.isAuthenticated()">
+  <div class="nav-container">
+    <div class="logo" routerLink="/dashboard">
+      <mat-icon class="logo-icon">terminal</mat-icon>
+      <span class="logo-text">Infra<span class="bold">TT</span></span>
+    </div>
+    <!-- Desktop nav (hidden on small screens) -->
+    <nav class="nav-links" *ngIf="userRole$ | async as role">
+      <a mat-button routerLink="/dashboard" routerLinkActive="active-link" [routerLinkActiveOptions]="{exact: true}">
+        <mat-icon>dashboard</mat-icon> Tableau de Bord
+      </a>
+      <a mat-button routerLink="/statistics" routerLinkActive="active-link" class="stats-link">
+        <mat-icon>insights</mat-icon> Statistiques
+      </a>
+      <a mat-button routerLink="/servers" routerLinkActive="active-link">
+        <mat-icon>dns</mat-icon> Serveurs
+      </a>
+      <a mat-button routerLink="/admin" *ngIf="role === 'ADMIN'" routerLinkActive="active-link">
+        <mat-icon>admin_panel_settings</mat-icon> Admin
+      </a>
+      <a mat-button routerLink="/admin/users" *ngIf="role === 'ADMIN'" routerLinkActive="active-link">
+        <mat-icon>people</mat-icon> Utilisateurs
+      </a>
+    </nav>
+
+    <!-- Mobile nav menu trigger -->
+    <button mat-icon-button class="mobile-menu" [matMenuTriggerFor]="navMenu" aria-label="Open navigation menu">
+      <mat-icon>menu</mat-icon>
+    </button>
+    <mat-menu #navMenu="matMenu">
+      <button mat-menu-item routerLink="/dashboard"><mat-icon>dashboard</mat-icon><span>Tableau de Bord</span></button>
+      <button mat-menu-item routerLink="/statistics"><mat-icon>insights</mat-icon><span>Statistiques</span></button>
+      <button mat-menu-item routerLink="/servers"><mat-icon>dns</mat-icon><span>Serveurs</span></button>
+      <button mat-menu-item *ngIf="(userRole$ | async) === 'ADMIN'" routerLink="/admin"><mat-icon>admin_panel_settings</mat-icon><span>Admin</span></button>
+      <button mat-menu-item *ngIf="(userRole$ | async) === 'ADMIN'" routerLink="/admin/users"><mat-icon>people</mat-icon><span>Utilisateurs</span></button>
+    </mat-menu>
+
+    <span class="spacer"></span>
+
+    <div class="user-action" *ngIf="userRole$ | async as role">
+      <button mat-icon-button [matMenuTriggerFor]="userMenu" class="avatar-btn">
+        <mat-icon>account_circle</mat-icon>
+      </button>
+      <mat-menu #userMenu="matMenu" xPosition="before">
+        <div class="menu-header">
+          <div class="user-info">
+            <span class="username">Connecté en tant que</span>
+            <span class="role-badge">{{ role }}</span>
+          </div>
+        </div>
+        <button mat-menu-item (click)="logout()">
+          <mat-icon>logout</mat-icon>
+          <span>Déconnexion</span>
+        </button>
+      </mat-menu>
+    </div>
+  </div>
+</mat-toolbar>
+
+<main class="content-area">
+  <router-outlet></router-outlet>
+</main>

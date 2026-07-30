@@ -1,0 +1,179 @@
+<div class="page-header">
+  <mat-icon class="page-icon">people</mat-icon>
+  <div>
+    <h2>User Management</h2>
+    <div class="subtitle">
+      <span class="stat-chip">Active: {{ activeUsers.length }}</span>
+      <span class="stat-chip">Archived: {{ archivedUsers.length }}</span>
+    </div>
+  </div>
+</div>
+
+<div *ngIf="loading" class="spinner-center">
+  <mat-spinner diameter="50"></mat-spinner>
+</div>
+
+<div *ngIf="!loading">
+  <!-- Modern Form Section -->
+  <mat-card class="form-card">
+    <mat-card-header>
+      <div mat-card-avatar class="card-icon">
+        <mat-icon>{{ editingUser ? 'edit' : 'person_add' }}</mat-icon>
+      </div>
+      <mat-card-title>
+        {{ editingUser ? 'Modify User Profile' : 'Register New User' }}
+      </mat-card-title>
+      <mat-card-subtitle>Configure access levels and credentials</mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="inline-form">
+        <mat-form-field appearance="outline" class="flex-1" *ngIf="!editingUser">
+          <mat-label>Username</mat-label>
+          <mat-icon matPrefix>person</mat-icon>
+          <input matInput [(ngModel)]="newUser.username" placeholder="e.g. john.doe">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>{{ editingUser ? 'Reset Password' : 'Password' }}</mat-label>
+          <mat-icon matPrefix>lock</mat-icon>
+          <input matInput [type]="'password'" [(ngModel)]="userForm.password" placeholder="••••••••">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>System Role</mat-label>
+          <mat-icon matPrefix>verified_user</mat-icon>
+          <mat-select [(ngModel)]="userForm.role">
+            <mat-option value="ADMIN">ADMIN</mat-option>
+            <mat-option value="DBA">DBA</mat-option>
+            <mat-option value="VIEWER">VIEWER</mat-option>
+          </mat-select>
+        </mat-form-field>
+        <div class="form-actions">
+          <button mat-flat-button color="primary" class="action-btn" (click)="saveUser()" 
+                  [disabled]="!editingUser && (!newUser.username || !userForm.password)">
+            <mat-icon>{{ editingUser ? 'save' : 'add' }}</mat-icon>
+            {{ editingUser ? 'Apply Changes' : 'Create User' }}
+          </button>
+          <button mat-stroked-button color="warn" class="action-btn" *ngIf="editingUser" (click)="cancelEdit()">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-tab-group [(selectedIndex)]="activeTab" class="users-tabs">
+    <!-- Active Users Tab -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="mr-8">how_to_reg</mat-icon>
+        <span>Active Accounts</span>
+      </ng-template>
+      <mat-card class="users-card">
+        <mat-card-content>
+          <div class="table-responsive">
+            <table mat-table [dataSource]="activeUsers" class="users-table">
+              
+              <ng-container matColumnDef="username">
+                <th mat-header-cell *matHeaderCellDef>Identity</th>
+                <td mat-cell *matCellDef="let row">
+                  <div class="user-cell">
+                    <div class="user-avatar-circle" [class.active]="!row.deleted">
+                      {{ row.username.charAt(0).toUpperCase() }}
+                    </div>
+                    <div>
+                      <span class="username">{{ row.username }}</span>
+                      <span class="self-badge" *ngIf="isCurrentUser(row.username)">YOU</span>
+                    </div>
+                  </div>
+                </td>
+              </ng-container>
+
+              <ng-container matColumnDef="role">
+                <th mat-header-cell *matHeaderCellDef>Access Level</th>
+                <td mat-cell *matCellDef="let row">
+                  <span class="role-badge" [class]="getRoleBadgeClass(row.role)">
+                    {{ row.role }}
+                  </span>
+                </td>
+              </ng-container>
+
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="text-right">Actions</th>
+                <td mat-cell *matCellDef="let row" class="text-right">
+                  <button mat-icon-button class="action-icon-btn" color="primary" (click)="editUser(row)" matTooltip="Edit profile">
+                    <mat-icon>edit</mat-icon>
+                  </button>
+                  <button mat-icon-button class="action-icon-btn" color="warn" (click)="archiveUser(row.id, row.username)"
+                    [disabled]="isCurrentUser(row.username)"
+                    [matTooltip]="isCurrentUser(row.username) ? 'Protected Account' : 'Archive User'">
+                    <mat-icon>archive</mat-icon>
+                  </button>
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="table-row"></tr>
+            </table>
+          </div>
+          <div *ngIf="activeUsers.length === 0" class="empty-hint">
+            <mat-icon class="empty-icon">group_off</mat-icon>
+            <p>No active user directory found.</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </mat-tab>
+
+    <!-- Archived Users Tab -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="mr-8">inventory_2</mat-icon>
+        <span>Vault / Archived</span>
+      </ng-template>
+      <mat-card class="users-card">
+        <mat-card-content>
+          <div class="table-responsive">
+            <table mat-table [dataSource]="archivedUsers" class="users-table">
+              
+              <ng-container matColumnDef="username">
+                <th mat-header-cell *matHeaderCellDef>Username</th>
+                <td mat-cell *matCellDef="let row">
+                  <div class="user-cell">
+                    <div class="user-avatar-circle archived">
+                      {{ row.username.charAt(0).toUpperCase() }}
+                    </div>
+                    <span class="username archived">{{ row.username }}</span>
+                  </div>
+                </td>
+              </ng-container>
+
+              <ng-container matColumnDef="role">
+                <th mat-header-cell *matHeaderCellDef>Legacy Role</th>
+                <td mat-cell *matCellDef="let row">
+                  <span class="role-badge" [class]="getRoleBadgeClass(row.role)">
+                    {{ row.role }}
+                  </span>
+                </td>
+              </ng-container>
+
+              <ng-container matColumnDef="actions">
+                <th mat-header-cell *matHeaderCellDef class="text-right">Restore Access</th>
+                <td mat-cell *matCellDef="let row" class="text-right">
+                  <button mat-icon-button class="action-icon-btn" color="accent" (click)="restoreUser(row.id, row.username)"
+                    matTooltip="Restore account">
+                    <mat-icon>unarchive</mat-icon>
+                  </button>
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="table-row"></tr>
+            </table>
+          </div>
+          <div *ngIf="archivedUsers.length === 0" class="empty-hint">
+            <mat-icon class="empty-icon">folder_special</mat-icon>
+            <p>The archive is currently empty.</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </mat-tab>
+  </mat-tab-group>
+</div>

@@ -1,0 +1,808 @@
+<div class="page-header">
+  <h2>{{ isEdit ? 'Modifier le Serveur' : (isCloneMode ? 'Copier un Serveur' : 'Créer un Serveur') }}</h2>
+</div>
+
+<div *ngIf="loading" class="spinner-center">
+  <mat-spinner></mat-spinner>
+</div>
+
+<form [formGroup]="form" (ngSubmit)="onSubmit()" *ngIf="!loading">
+
+  <!-- ================= SECTION: Informations Générales ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">info</mat-icon>
+      <mat-card-title>Informations Générales</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>Hostname</mat-label>
+          <input matInput formControlName="hostname" required>
+          <mat-error *ngIf="form.get('hostname')?.hasError('required')">Le hostname est requis</mat-error>
+          <mat-error *ngIf="form.get('hostname')?.hasError('backendUnique')">Ce hostname existe déjà !</mat-error>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>Adresse IP Principale</mat-label>
+          <input matInput formControlName="ipAddress" required>
+          <mat-error *ngIf="form.get('ipAddress')?.hasError('required')">L'adresse IP est requise</mat-error>
+          <mat-error *ngIf="form.get('ipAddress')?.hasError('backendUnique')">Cette IP existe déjà !</mat-error>
+        </mat-form-field>
+
+        <div class="flex-1" style="display:flex; align-items: flex-start; gap: 8px;">
+          <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Environnement</mat-label>
+            <mat-select formControlName="environmentId" required>
+              <mat-option *ngFor="let env of environments" [value]="env.id">{{ env.name }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button type="button" mat-icon-button color="primary"
+                  style="margin-top: 4px;" (click)="showEnvironmentForm = !showEnvironmentForm"
+                  matTooltip="Ajouter un nouvel environnement">
+            <mat-icon>{{ showEnvironmentForm ? 'close' : 'add_circle' }}</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>Statut</mat-label>
+          <mat-select formControlName="status" required>
+            <mat-option value="UP">UP</mat-option>
+            <mat-option value="DOWN">DOWN</mat-option>
+            <mat-option value="MAINTENANCE">MAINTENANCE</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>Mode</mat-label>
+          <mat-select formControlName="serverMode" required>
+            <mat-option value="VIRTUAL">VIRTUAL</mat-option>
+            <mat-option value="PHYSICAL">PHYSICAL</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <div class="flex-1" style="display:flex; align-items: flex-start; gap: 8px;">
+          <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>SGBD</mat-label>
+            <mat-select formControlName="sgbdId">
+              <mat-option [value]="null">— Aucun —</mat-option>
+              <mat-option *ngFor="let s of sgbds" [value]="s.id">
+                {{ s.name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button type="button" mat-icon-button color="primary"
+                  style="margin-top: 4px;" (click)="showSgbdForm = !showSgbdForm"
+                  matTooltip="Ajouter un nouveau SGBD">
+            <mat-icon>{{ showSgbdForm ? 'close' : 'add_circle' }}</mat-icon>
+          </button>
+        </div>
+
+        <div class="flex-1" style="display:flex; align-items: flex-start; gap: 8px;">
+          <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Release SGBD</mat-label>
+            <mat-select formControlName="sgbdReleaseId" [disabled]="!form.get('sgbdId')?.value">
+              <mat-option [value]="null">— Aucun —</mat-option>
+              <mat-option *ngFor="let r of sgbdReleases" [value]="r.id">
+                {{ r.name }}
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button type="button" mat-icon-button color="primary"
+                  style="margin-top: 4px;" (click)="showSgbdReleaseForm = !showSgbdReleaseForm"
+                  [disabled]="!form.get('sgbdId')?.value"
+                  matTooltip="Ajouter un nouveau release">
+            <mat-icon>{{ showSgbdReleaseForm ? 'close' : 'add_circle' }}</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="flex-1" style="display:flex; align-items: flex-start; gap: 8px;">
+          <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Type de Serveur</mat-label>
+            <mat-select formControlName="serverTypeId" required>
+              <mat-option *ngFor="let t of serverTypes" [value]="t.id">{{ t.name }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button type="button" mat-icon-button color="primary" 
+                  style="margin-top: 4px;" (click)="showSTForm = !showSTForm"
+                  matTooltip="Ajouter un nouveau type">
+            <mat-icon>{{ showSTForm ? 'close' : 'add_circle' }}</mat-icon>
+          </button>
+        </div>
+
+        <div class="flex-1" style="display:flex; align-items: flex-start; gap: 8px;">
+          <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Système d'Exploitation</mat-label>
+            <mat-select formControlName="operatingSystemId" required>
+              <mat-option *ngFor="let os of operatingSystems" [value]="os.id">
+                {{ os.name }} ({{ os.version }})
+              </mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button type="button" mat-icon-button color="primary" 
+                  style="margin-top: 4px;" (click)="showOSForm = !showOSForm"
+                  matTooltip="Ajouter un nouvel OS">
+            <mat-icon>{{ showOSForm ? 'close' : 'add_circle' }}</mat-icon>
+          </button>
+        </div>
+      </div>
+
+      <!-- INLINE SERVER TYPE FORM -->
+      <div *ngIf="showSTForm" class="inline-creation-box">
+         <h4>Nouveau Type de Serveur</h4>
+         <div class="form-row">
+           <mat-form-field appearance="outline" class="flex-1">
+             <mat-label>Nom du Type</mat-label>
+             <input matInput [(ngModel)]="newSTName" [ngModelOptions]="{standalone: true}" placeholder="ex: Application Server">
+           </mat-form-field>
+           <mat-form-field appearance="outline" class="flex-2">
+             <mat-label>Description</mat-label>
+             <input matInput [(ngModel)]="newSTDesc" [ngModelOptions]="{standalone: true}" placeholder="Description facultative">
+           </mat-form-field>
+           <div style="display:flex; align-items:center; height: 56px;">
+             <button type="button" mat-raised-button color="primary" [disabled]="!newSTName.trim()" (click)="createST()">
+               Créer
+             </button>
+           </div>
+         </div>
+      </div>
+
+      <!-- INLINE OPERATING SYSTEM FORM -->
+      <div *ngIf="showOSForm" class="inline-creation-box">
+         <h4>Nouveau Système d'Exploitation</h4>
+         <div class="form-row">
+           <mat-form-field appearance="outline" class="flex-1">
+             <mat-label>Nom de l'OS</mat-label>
+             <input matInput [(ngModel)]="newOSName" [ngModelOptions]="{standalone: true}" placeholder="ex: Ubuntu 22.04">
+           </mat-form-field>
+           <mat-form-field appearance="outline" class="flex-1">
+             <mat-label>Version</mat-label>
+             <input matInput [(ngModel)]="newOSVersion" [ngModelOptions]="{standalone: true}" placeholder="ex: 22.04">
+           </mat-form-field>
+           <div style="display:flex; align-items:center; height: 56px;">
+             <button type="button" mat-raised-button color="primary" [disabled]="!newOSName.trim()" (click)="createOS()">
+               Créer
+             </button>
+           </div>
+         </div>
+      </div>
+
+      <!-- INLINE ENVIRONMENT FORM -->
+      <div *ngIf="showEnvironmentForm" class="inline-creation-box">
+         <h4>Nouvel Environnement</h4>
+         <div class="form-row">
+           <mat-form-field appearance="outline" class="flex-1">
+             <mat-label>Nom</mat-label>
+             <input matInput [(ngModel)]="newEnvironmentName" [ngModelOptions]="{standalone: true}" placeholder="ex: STAGING">
+           </mat-form-field>
+           <mat-form-field appearance="outline" class="flex-2">
+             <mat-label>Description</mat-label>
+             <input matInput [(ngModel)]="newEnvironmentDesc" [ngModelOptions]="{standalone: true}" placeholder="Description facultative">
+           </mat-form-field>
+           <div style="display:flex; align-items:center; height: 56px;">
+             <button type="button" mat-raised-button color="primary" [disabled]="!newEnvironmentName.trim()" (click)="createEnvironment()">
+               Creer
+             </button>
+           </div>
+         </div>
+      </div>
+
+      <!-- INLINE SGBD FORM -->
+      <div *ngIf="showSgbdForm" class="inline-creation-box">
+         <h4>Nouveau SGBD</h4>
+         <div class="form-row">
+           <mat-form-field appearance="outline" class="flex-1">
+             <mat-label>Nom du SGBD</mat-label>
+             <input matInput [(ngModel)]="newSgbdName" [ngModelOptions]="{standalone: true}" placeholder="ex: Oracle">
+           </mat-form-field>
+           <div style="display:flex; align-items:center; height: 56px;">
+             <button type="button" mat-raised-button color="primary" [disabled]="!newSgbdName.trim()" (click)="createSgbd()">
+               Creer
+             </button>
+           </div>
+         </div>
+      </div>
+
+      <!-- INLINE SGBD RELEASE FORM -->
+      <div *ngIf="showSgbdReleaseForm" class="inline-creation-box">
+         <h4>Nouveau Release SGBD</h4>
+         <div class="form-row">
+           <mat-form-field appearance="outline" class="flex-1">
+             <mat-label>Nom du Release</mat-label>
+             <input matInput [(ngModel)]="newSgbdReleaseName" [ngModelOptions]="{standalone: true}" placeholder="ex: 19c">
+           </mat-form-field>
+           <div style="display:flex; align-items:center; height: 56px;">
+             <button type="button" mat-raised-button color="primary" [disabled]="!newSgbdReleaseName.trim()" (click)="createSgbdRelease()">
+               Creer
+             </button>
+           </div>
+         </div>
+      </div>
+
+      <div class="form-row">
+         <mat-form-field appearance="outline" class="full-width">
+            <mat-label>Commentaire</mat-label>
+            <textarea matInput formControlName="comment" rows="3"></textarea>
+         </mat-form-field>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ================= SECTION: Architecture (Platform / Cluster) ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">hub</mat-icon>
+      <mat-card-title>Plateforme</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="form-row">
+        <div class="flex-1" style="display:flex; align-items: flex-start; gap: 8px;">
+          <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Plateformes</mat-label>
+            <mat-select formControlName="platformIds" multiple panelClass="platform-select-panel">
+            <mat-select-trigger>
+              <ng-container *ngIf="selectedPlatformNames.length > 0; else noSelectedPlatform">
+                {{ selectedPlatformNames[0] }}
+                <span class="platform-trigger-count" *ngIf="selectedPlatformNames.length > 1">
+                  +{{ selectedPlatformNames.length - 1 }} autre(s)
+                </span>
+              </ng-container>
+              <ng-template #noSelectedPlatform>Aucune plateforme</ng-template>
+            </mat-select-trigger>
+
+            <div class="platform-search-option" (click)="$event.stopPropagation()">
+              <div class="platform-search-box">
+                <mat-icon>search</mat-icon>
+                <input
+                  matInput
+                  [(ngModel)]="platformSearchText"
+                  [ngModelOptions]="{standalone: true}"
+                  class="platform-search-input"
+                  placeholder="Rechercher par nom ou ID..."
+                  (keydown)="$event.stopPropagation()"
+                >
+                <button
+                  type="button"
+                  mat-icon-button
+                  class="platform-search-clear"
+                  *ngIf="platformSearchText"
+                  (click)="clearPlatformSearch($event)"
+                  matTooltip="Effacer la recherche"
+                >
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+
+              <div class="platform-search-actions">
+                <button type="button" mat-button (click)="selectAllFilteredPlatforms($event)">Tout sélectionner (résultat)</button>
+                <button type="button" mat-button color="warn" (click)="clearPlatformSelection($event)">Vider la sélection</button>
+              </div>
+            </div>
+
+            <mat-option *ngFor="let p of filteredPlatformOptions" [value]="p.id">
+              <div class="platform-option-content">
+                <span>{{ p.name }}</span>
+                <mat-icon class="platform-option-check" *ngIf="isPlatformSelected(p.id)">check</mat-icon>
+              </div>
+            </mat-option>
+
+              <mat-option disabled *ngIf="filteredPlatformOptions.length === 0">
+                Aucune plateforme trouvée
+              </mat-option>
+            </mat-select>
+            <mat-hint *ngIf="selectedPlatformNames.length > 0">
+              {{ selectedPlatformNames.length }} plateforme(s) sélectionnée(s) | principale: {{ selectedPlatformNames[0] }}
+            </mat-hint>
+          </mat-form-field>
+
+          <button
+            type="button"
+            mat-icon-button
+            color="primary"
+            style="margin-top: 4px;"
+            (click)="showPlatformForm = !showPlatformForm"
+            matTooltip="Ajouter une nouvelle plateforme"
+          >
+            <mat-icon>{{ showPlatformForm ? 'close' : 'add_circle' }}</mat-icon>
+          </button>
+        </div>
+
+        <div class="flex-1" style="display:flex; align-items: flex-start; gap: 8px;" *ngIf="clusters.length > 0 || (form.get('platformIds')?.value?.length || 0) > 0">
+          <mat-form-field appearance="outline" style="flex: 1;">
+            <mat-label>Replication / Cluster (Optionnel)</mat-label>
+            <mat-select formControlName="clusterId">
+              <mat-option [value]="null">Aucun</mat-option>
+              <mat-option *ngFor="let c of clusters" [value]="c.id">{{ c.name }}</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button type="button" mat-icon-button color="primary" 
+                  style="margin-top: 4px;" (click)="showClusterForm = !showClusterForm"
+                  *ngIf="(form.get('platformIds')?.value?.length || 0) > 0"
+                  matTooltip="Ajouter un nouveau Replication / Cluster">
+            <mat-icon>{{ showClusterForm ? 'close' : 'add_circle' }}</mat-icon>
+          </button>
+        </div>
+
+        <mat-form-field appearance="outline" class="flex-1" *ngIf="form.get('clusterId')?.value">
+          <mat-label>Rôle dans le Replication / Cluster</mat-label>
+          <mat-select formControlName="clusterRole">
+            <mat-option value="PRIMARY">Primaire</mat-option>
+            <mat-option value="SECONDARY">Secondaire</mat-option>
+          </mat-select>
+        </mat-form-field>
+   
+      </div>
+
+      <div class="selected-platforms" *ngIf="selectedPlatforms.length > 0">
+        <span class="selected-platforms-label">Plateformes sélectionnées:</span>
+        <button
+          type="button"
+          class="selected-platform-chip"
+          *ngFor="let p of selectedPlatforms; let i = index"
+          (click)="removePlatformSelection(p.id, $event)"
+          [class.primary]="i === 0"
+          matTooltip="Cliquer pour retirer"
+        >
+          <mat-icon *ngIf="i === 0" class="primary-icon">star</mat-icon>
+          {{ p.name }}
+          <mat-icon class="chip-close">close</mat-icon>
+        </button>
+      </div>
+
+      <!-- INLINE PLATFORM FORM -->
+      <div *ngIf="showPlatformForm" class="inline-creation-box">
+         <h4>Nouvelle Plateforme</h4>
+         <div class="form-row">
+           <mat-form-field appearance="outline" class="flex-1">
+             <mat-label>Nom de la Plateforme</mat-label>
+             <input matInput [(ngModel)]="newPlatformName" [ngModelOptions]="{standalone: true}" placeholder="ex: CRM">
+           </mat-form-field>
+           <mat-form-field appearance="outline" class="flex-2">
+             <mat-label>Description</mat-label>
+             <input matInput [(ngModel)]="newPlatformDesc" [ngModelOptions]="{standalone: true}" placeholder="Description facultative">
+           </mat-form-field>
+           <div style="display:flex; align-items:center; height: 56px;">
+             <button type="button" mat-raised-button color="primary" [disabled]="!newPlatformName.trim()" (click)="createPlatform()">
+               Créer
+             </button>
+           </div>
+         </div>
+      </div>
+
+      <!-- INLINE CLUSTER FORM -->
+      <div *ngIf="showClusterForm" class="inline-creation-box">
+         <h4>Nouveau Replication / Cluster pour cette plateforme</h4>
+         <div class="form-row">
+           <mat-form-field appearance="outline" class="flex-1">
+             <mat-label>Nom du Replication / Cluster</mat-label>
+             <input matInput [(ngModel)]="newClusterName" [ngModelOptions]="{standalone: true}" placeholder="ex: Cluster SQL PROD">
+           </mat-form-field>
+           <mat-form-field appearance="outline" class="flex-2">
+             <mat-label>Description</mat-label>
+             <input matInput [(ngModel)]="newClusterDesc" [ngModelOptions]="{standalone: true}" placeholder="Description facultative">
+           </mat-form-field>
+           <div style="display:flex; align-items:center; height: 56px;">
+             <button type="button" mat-raised-button color="primary" [disabled]="!newClusterName.trim()" (click)="createCluster()">
+               Créer
+             </button>
+           </div>
+         </div>
+      </div>
+
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ================= SECTION: Availability Groups ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">group_work</mat-icon>
+      <mat-card-title>Availability Groups (n'est pas obligatoire)</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <mat-checkbox formControlName="availabilityGroupEnabled" color="primary" style="margin-bottom: 16px; display: block;">
+        <strong>Activer les groupes de disponibilité pour ce serveur</strong>
+      </mat-checkbox>
+
+      <div *ngIf="form.get('availabilityGroupEnabled')?.value">
+        <div *ngIf="form.get('availabilityGroups')?.hasError('duplicateAvailabilityGroupNames')" class="error-message">
+          <mat-icon>error</mat-icon> Les noms des groupes availability doivent être distincts (majuscule/minuscule ignorées).
+        </div>
+        <div class="card-actions-header" style="margin-bottom: 16px;">
+          <button type="button" mat-stroked-button color="primary" (click)="addAvailabilityGroup()">
+            <mat-icon>add</mat-icon> Ajouter un Groupe (AG)
+          </button>
+        </div>
+        <ng-container formArrayName="availabilityGroups">
+        <div *ngFor="let ag of availabilityGroupArray.controls; let i=index" [formGroupName]="i" class="array-row">
+          <mat-form-field appearance="outline" class="flex-2">
+            <mat-label>Nom Availability Group <span class="required-asterisk">*</span></mat-label>
+            <input matInput formControlName="groupName" required>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Statut AG <span class="required-asterisk">*</span></mat-label>
+            <mat-select formControlName="groupStatus" required>
+              <mat-option value="PRIMARY">Primaire</mat-option>
+              <mat-option value="SECONDARY">Secondaire</mat-option>
+            </mat-select>
+          </mat-form-field>
+          <button type="button" mat-icon-button class="remove-btn" (click)="removeAvailabilityGroup(i)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </ng-container>
+        <p *ngIf="availabilityGroupArray.controls.length === 0" class="empty-hint">Aucun groupe de disponibilité configuré.</p>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ================= SECTION: Ressources (CPU, RAM) ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">memory</mat-icon>
+      <mat-card-title>Ressources</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>Nombre de CPU</mat-label>
+          <input matInput type="number" formControlName="cpu">
+          <mat-error *ngIf="form.get('cpu')?.hasError('min')">Le nombre de CPU doit être positif</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>CPU Usage (%)</mat-label>
+          <input matInput type="number" formControlName="cpuUsage">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>RAM Used (GB)</mat-label>
+          <input matInput type="number" formControlName="ramUsed">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>RAM Total (GB)</mat-label>
+          <input matInput type="number" formControlName="ramTotal">
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>RAM Percentage (%)</mat-label>
+          <input matInput type="number" formControlName="ramPercentage">
+        </mat-form-field>
+      </div>
+      <div *ngIf="form.hasError('ramUsedExceedsTotal')" class="error-message">
+        <mat-icon>error</mat-icon> La RAM totale doit etre superieure ou egale a la RAM utilisee.
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ================= SECTION: TableSpaces ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">table_chart</mat-icon>
+      <mat-card-title>Table Spaces (n'est pas obligatoire)</mat-card-title>
+      <div class="card-actions-header">
+        <button type="button" mat-stroked-button color="primary" (click)="addTableSpace()">
+          <mat-icon>add</mat-icon> Ajouter TableSpace
+        </button>
+      </div>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="form.get('tableSpaces')?.hasError('duplicateTableSpaceNames')" class="error-message">
+        <mat-icon>error</mat-icon> Les noms des tablespaces doivent être distincts (insensible à la casse).
+      </div>
+      <ng-container formArrayName="tableSpaces">
+        <div *ngFor="let ts of tableSpaceArray.controls; let i=index" [formGroupName]="i" class="array-row">
+          <mat-form-field appearance="outline" class="flex-2">
+            <mat-label>Nom du TableSpace</mat-label>
+            <input matInput formControlName="name" required>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-2">
+            <mat-label>Instance / Base <span class="required-asterisk">*</span></mat-label>
+            <mat-select formControlName="instanceName" required>
+              <mat-option *ngFor="let inst of instanceOptions" [value]="inst.name">{{ inst.name }}</mat-option>
+            </mat-select>
+            <mat-hint *ngIf="instanceOptions.length === 0">Ajoutez d'abord une instance</mat-hint>
+            <mat-error *ngIf="ts.get('instanceName')?.hasError('required')">Instance requise</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Capacité</mat-label>
+            <input matInput type="number" formControlName="capacity">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Utilisé (%)</mat-label>
+            <input matInput type="number" formControlName="usedPercent">
+          </mat-form-field>
+          <button type="button" mat-icon-button class="remove-btn" (click)="removeTableSpace(i)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </ng-container>
+      <p *ngIf="tableSpaceArray.controls.length === 0" class="empty-hint">Aucun tablespace configuré.</p>
+    </mat-card-content>
+  </mat-card>
+
+
+  <!-- ================= SECTION: Disques ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">storage</mat-icon>
+      <mat-card-title>Disques (n'est pas obligatoire)</mat-card-title>
+      <div class="card-actions-header">
+        <button type="button" mat-stroked-button color="primary" (click)="addDisk()">
+          <mat-icon>add</mat-icon> Ajouter un Disque
+        </button>
+      </div>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="form.get('disks')?.hasError('duplicateDiskNames')" class="error-message">
+        <mat-icon>error</mat-icon> Les noms des disques doivent être distincts (insensible à la casse).
+      </div>
+      <ng-container formArrayName="disks">
+        <div *ngFor="let disk of diskArray.controls; let i=index" [formGroupName]="i" class="array-row">
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Nom <span class="required-asterisk">*</span></mat-label>
+            <input matInput formControlName="name" placeholder="ex: C:/">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Taille Max (GB)</mat-label>
+            <input matInput type="number" formControlName="maxSize">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Utilisé (%)</mat-label>
+            <input matInput type="number" formControlName="usedPercentage">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Espace Libre (GB)</mat-label>
+            <input matInput type="number" formControlName="availableStorage">
+          </mat-form-field>
+          <button type="button" mat-icon-button class="remove-btn" (click)="removeDisk(i)" matTooltip="Supprimer ce disque">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </ng-container>
+      <p *ngIf="diskArray.controls.length === 0" class="empty-hint">Aucun disque configuré.</p>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ================= SECTION: Instances ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">widgets</mat-icon>
+      <mat-card-title>Instances / Bases (n'est pas obligatoire)</mat-card-title>
+      <div class="card-actions-header">
+        <button type="button" mat-stroked-button color="primary" (click)="addInstance()">
+          <mat-icon>add</mat-icon> Ajouter une Instance
+        </button>
+      </div>
+    </mat-card-header>
+    <mat-card-content>
+      <div *ngIf="form.get('instances')?.hasError('duplicateInstanceNames')" class="error-message">
+        <mat-icon>error</mat-icon> Les noms d'instances doivent être distincts (insensible à la casse).
+      </div>
+      <ng-container formArrayName="instances">
+        <div *ngFor="let inst of instanceArray.controls; let i=index" [formGroupName]="i" class="array-row" style="flex-direction: column; align-items: stretch; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #fafafa;">
+          
+          <!-- Instance Header Row -->
+          <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 16px;">
+            <mat-form-field appearance="outline" class="flex-2">
+              <mat-label>Nom de l'Instance <span class="required-asterisk">*</span></mat-label>
+              <input matInput formControlName="name" placeholder="ex: SQLSERVER_MAIN">
+            </mat-form-field>
+            <div class="flex-1" style="display:flex; align-items:center;">
+              <mat-checkbox formControlName="isSynchronized" color="primary">Synchronisé (Always On)</mat-checkbox>
+            </div>
+            <button type="button" mat-icon-button class="remove-btn" (click)="removeInstance(i)" matTooltip="Supprimer l'instance">
+              <mat-icon>delete</mat-icon>
+            </button>
+          </div>
+
+          <!-- Nested Files Section -->
+          <div class="instance-files-section" style="border-top: 1px dashed #cbd5e1; padding-top: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <h5 style="margin: 0; font-weight: 500; color: #475569;">Fichiers de l'instance</h5>
+              <button type="button" mat-stroked-button color="primary" (click)="addInstanceFile(i)">
+                <mat-icon>add</mat-icon> Ajouter un Fichier
+              </button>
+            </div>
+            
+            <ng-container formArrayName="files">
+              <div *ngFor="let file of getInstanceFileArray(i).controls; let j=index" [formGroupName]="j" class="array-row" style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px;">
+                <mat-form-field appearance="outline" class="flex-2">
+                  <mat-label>Nom Fichier <span class="required-asterisk">*</span></mat-label>
+                  <input matInput formControlName="fileName">
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="flex-1">
+                  <mat-label>Taille (MB)</mat-label>
+                  <input matInput type="number" formControlName="size">
+                </mat-form-field>
+                <div class="flex-1" style="display:flex; align-items:center; justify-content: center;">
+                  <mat-checkbox formControlName="autoExtensible" color="primary">Auto Extensible</mat-checkbox>
+                </div>
+                <mat-form-field appearance="outline" class="flex-2">
+                  <mat-label>Commentaire</mat-label>
+                  <input matInput formControlName="comment">
+                </mat-form-field>
+                <button type="button" mat-icon-button color="warn" (click)="removeInstanceFile(i, j)" matTooltip="Supprimer ce fichier">
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            </ng-container>
+            <p *ngIf="getInstanceFileArray(i).controls.length === 0" class="empty-hint" style="font-size: 13px; margin-top: 4px; padding: 4px;">Aucun fichier attaché à cette instance.</p>
+          </div>
+
+        </div>
+      </ng-container>
+      <p *ngIf="instanceArray.controls.length === 0" class="empty-hint">Aucune instance configurée.</p>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ================= SECTION: Server Errors ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon" style="color: #ef4444; background: #fee2e2;">error</mat-icon>
+      <mat-card-title>Erreurs (n'est pas obligatoire)</mat-card-title>
+      <div class="card-actions-header">
+        <button type="button" mat-stroked-button color="warn" (click)="addServerError()">
+          <mat-icon>add</mat-icon> Logguer Erreur
+        </button>
+      </div>
+    </mat-card-header>
+    <mat-card-content>
+      <ng-container formArrayName="serverErrors">
+        <div *ngFor="let err of serverErrorArray.controls; let i=index" [formGroupName]="i" class="array-row">
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Nom de l'Erreur <span class="required-asterisk">*</span></mat-label>
+            <input matInput formControlName="errorName">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Description</mat-label>
+            <input matInput formControlName="description">
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Date d'Apparition <span class="required-asterisk">*</span></mat-label>
+            <input matInput [matDatepicker]="errorPicker" formControlName="appearanceDateOnly">
+            <mat-datepicker-toggle matSuffix [for]="errorPicker"></mat-datepicker-toggle>
+            <mat-datepicker #errorPicker></mat-datepicker>
+          </mat-form-field>
+          <mat-form-field appearance="outline" style="width: 120px;">
+            <mat-label>Heure <span class="required-asterisk">*</span></mat-label>
+            <input matInput type="time" formControlName="appearanceTimeOnly">
+          </mat-form-field>
+          <div *ngIf="err.hasError('futureDateTime')" class="error-hint" style="margin-top: -10px; margin-bottom: 10px; font-size: 12px; width: 100%;">
+            <mat-icon style="font-size: 14px; height: 14px; width: 14px; vertical-align: middle;">error</mat-icon>
+            La date/heure ne peut pas être dans le futur.
+          </div>
+          <button type="button" mat-stroked-button color="primary" (click)="setErrorDateNow(i)">
+            Maintenant
+          </button>
+          <button type="button" mat-icon-button class="remove-btn" (click)="removeServerError(i)">
+            <mat-icon>delete</mat-icon>
+          </button>
+        </div>
+      </ng-container>
+      <p *ngIf="serverErrorArray.controls.length === 0" class="empty-hint">Aucune erreur manuelle enregistrée.</p>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- ================= SECTION: Backup ================= -->
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">backup</mat-icon>
+      <mat-card-title>Politique de Sauvegarde</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <mat-checkbox formControlName="backupEnabled" color="primary" class="backup-checkbox">
+        <strong>Activer la sauvegarde pour ce serveur</strong>
+      </mat-checkbox>
+
+      <div *ngIf="form.get('backupEnabled')?.value" class="backup-fields" formGroupName="backupPolicy">
+        <div class="form-row">
+          <mat-form-field appearance="outline" class="flex-1">
+            <mat-label>Nom de la Politique <span class="required-asterisk">*</span></mat-label>
+            <input matInput formControlName="policyName">
+            <mat-error *ngIf="form.get('backupPolicy')?.get('policyName')?.hasError('backendUnique')">Ce nom de politique existe déjà !</mat-error>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="flex-2">
+            <mat-label>Adresse Globale de Sauvegarde <span class="required-asterisk">*</span></mat-label>
+            <input matInput formControlName="backupAddress">
+          </mat-form-field>
+        </div>
+        <div class="form-row">
+           <mat-form-field appearance="outline" class="full-width">
+              <mat-label>Commentaires / Notes de Backup</mat-label>
+              <textarea matInput formControlName="generalComment" rows="2"></textarea>
+           </mat-form-field>
+        </div>
+
+        <mat-divider class="backup-divider"></mat-divider>
+
+        <div class="backup-types-header">
+          <h4>Types de Sauvegarde & Planification</h4>
+          <button type="button" mat-stroked-button color="primary" (click)="addBackupType()">
+            <mat-icon>add</mat-icon> Ajouter Type de Backup
+          </button>
+        </div>
+
+        <ng-container formArrayName="backupTypes">
+          <div *ngFor="let bt of backupTypesArray.controls; let i=index" [formGroupName]="i" class="array-row backup-array-row">
+            <div class="backup-type-body">
+                <div class="backup-type-top-row">
+                  <mat-form-field appearance="outline" class="flex-2">
+                    <mat-label>Type <span class="required-asterisk">*</span></mat-label>
+                    <mat-select formControlName="typeBackup">
+                      <mat-option *ngFor="let op of backupTypeOptions" [value]="op.value">{{ op.label }}</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+
+                  <mat-form-field appearance="outline" class="flex-3">
+                    <mat-label>Chemin de Stockage (Path)</mat-label>
+                    <input matInput formControlName="storagePath">
+                  </mat-form-field>
+                  
+                  <button type="button" mat-icon-button class="remove-btn backup-remove-btn" (click)="removeBackupType(i)">
+                    <mat-icon>delete</mat-icon>
+                  </button>
+                </div>
+               
+               <div class="backup-type-days-row">
+                 <!-- Days Selection -->
+                 <mat-form-field appearance="outline" class="full-width">
+                   <mat-label>Planification (Jours) <span class="required-asterisk">*</span></mat-label>
+                   <mat-select formControlName="selectedDays" multiple required>
+                     <mat-option *ngFor="let day of dayOptions" [value]="day.value">{{ day.label }}</mat-option>
+                   </mat-select>
+                 </mat-form-field>
+               </div>
+               
+                <div class="time-range-box">
+                   <div class="time-field">
+                     <mat-icon class="time-icon">schedule</mat-icon>
+                     <mat-form-field appearance="outline" class="flex-1">
+                       <mat-label>De (Début)</mat-label>
+                       <input matInput type="time" formControlName="scheduleStartTime" required>
+                     </mat-form-field>
+                   </div>
+                   <div class="time-separator">—</div>
+                   <div class="time-field">
+                     <mat-icon class="time-icon">hourglass_empty</mat-icon>
+                     <mat-form-field appearance="outline" class="flex-1">
+                       <mat-label>À (Fin)</mat-label>
+                       <input matInput type="time" formControlName="scheduleEndTime" required>
+                     </mat-form-field>
+                   </div>
+                </div>
+               <div *ngIf="isBackupTimeRangeInvalid(i)" class="error-message">
+                 <mat-icon>error</mat-icon> Plage horaire invalide: l'heure de début doit être avant l'heure de fin.
+               </div>
+            </div>
+          </div>
+        </ng-container>
+        <p *ngIf="backupTypesArray.controls.length === 0" class="empty-hint" style="margin-top: 16px;">
+          Vous devez ajouter au moins un type de sauvegarde si le backup est activé.
+        </p>
+
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- FLOATING ACTION BAR -->
+  <div class="floating-action-bar" *ngIf="!loading">
+    <div class="floating-action-inner">
+      <button type="button" mat-stroked-button class="fab-cancel-btn" (click)="goBack()" [disabled]="saving">
+        <mat-icon>arrow_back</mat-icon>
+        Annuler
+      </button>
+
+      <div class="fab-status-badge" *ngIf="form.invalid && form.dirty">
+        <mat-icon>warning_amber</mat-icon>
+        Champs invalides
+      </div>
+
+      <button type="submit" mat-flat-button class="fab-save-btn" [disabled]="form.invalid || saving">
+        <mat-spinner diameter="18" *ngIf="saving" class="fab-spinner"></mat-spinner>
+        <mat-icon *ngIf="!saving">save</mat-icon>
+        <span>{{ isEdit ? 'Mettre à jour' : 'Enregistrer' }}</span>
+      </button>
+    </div>
+  </div>
+</form>

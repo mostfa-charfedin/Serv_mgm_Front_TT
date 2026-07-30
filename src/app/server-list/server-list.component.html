@@ -1,0 +1,255 @@
+<div class="page-header">
+  <div>
+    <h2>Inventaire des Serveurs</h2>
+    <p class="subtitle">{{ totalElements }} serveur(s) {{ showArchived ? 'archivé(s)' : 'enregistré(s)' }}</p>
+  </div>
+  <div class="header-actions">
+    <button mat-stroked-button color="accent" (click)="toggleArchived()" *ngIf="canDelete" style="margin-right: 12px;">
+      <mat-icon>{{ showArchived ? 'list' : 'inventory_2' }}</mat-icon>
+      {{ showArchived ? 'Serveurs Actifs' : 'Voir Archives' }}
+    </button>
+    <button mat-raised-button color="primary" routerLink="/servers/new" *ngIf="canAdd && !showArchived">
+      <mat-icon>add</mat-icon> Ajouter Serveur
+    </button>
+    <button mat-stroked-button color="accent" (click)="importAllServersExcel()" *ngIf="canAdd && !showArchived" style="margin-left: 12px;">
+      <mat-icon>upload_file</mat-icon> Import Global Excel
+    </button>
+    <button mat-stroked-button color="primary" (click)="exportAllServersExcel()" *ngIf="!showArchived" style="margin-left: 12px;">
+      <mat-icon>download</mat-icon> Export Global Excel
+    </button>
+  </div>
+</div>
+
+<!-- Search Bar (Show only for active list) -->
+<mat-card class="search-card" *ngIf="!showArchived">
+  <mat-card-content>
+    <div class="search-row">
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Rechercher par hostname</mat-label>
+        <mat-icon matPrefix>search</mat-icon>
+        <input matInput [(ngModel)]="searchHostname" (input)="onSearch()" placeholder="ex: srv-prod-01">
+        <button *ngIf="searchHostname" matSuffix mat-icon-button (click)="searchHostname=''; onSearch()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Rechercher par instance</mat-label>
+        <mat-icon matPrefix>memory</mat-icon>
+        <input matInput [(ngModel)]="searchInstance" (input)="onSearch()" placeholder="ex: instance-001">
+        <button *ngIf="searchInstance" matSuffix mat-icon-button (click)="searchInstance=''; onSearch()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Filtrer par plateforme</mat-label>
+        <mat-icon matPrefix>domain</mat-icon>
+        <mat-select [(ngModel)]="searchPlatform" (selectionChange)="onSearch()" panelClass="platform-filter-panel">
+          <mat-option [value]="null">— Toutes les plateformes —</mat-option>
+          <mat-option *ngFor="let p of filteredPlatformOptions" [value]="p.id">{{ p.name }}</mat-option>
+          <mat-option disabled *ngIf="filteredPlatformOptions.length === 0">Aucune plateforme trouvée</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-label>Type de serveur</mat-label>
+        <mat-icon matPrefix>category</mat-icon>
+        <mat-select [(ngModel)]="searchServerType" (selectionChange)="onSearch()">
+          <mat-option [value]="null">— Tous les Types —</mat-option>
+          <mat-option *ngFor="let st of serverTypes" [value]="st.id">{{ st.name }}</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+    
+
+      <mat-form-field appearance="outline" class="search-field" >
+        <mat-label>Filtrer par statut</mat-label>
+        <mat-icon matPrefix>info</mat-icon>
+        <mat-select [(ngModel)]="searchStatus" (selectionChange)="onSearch()">
+          <mat-option value="">— Tous les Statuts —</mat-option>
+          <mat-option value="UP">UP</mat-option>
+          <mat-option value="DOWN">DOWN</mat-option>
+          <mat-option value="MAINTENANCE">MAINTENANCE</mat-option>
+        </mat-select>
+      </mat-form-field>
+    </div>
+  </mat-card-content>
+</mat-card>
+
+<!-- Loading -->
+<div *ngIf="loading" class="spinner-center">
+  <mat-spinner diameter="50"></mat-spinner>
+</div>
+
+<!-- Table grouped by platform -->
+<mat-card class="table-card" *ngIf="!loading">
+  <mat-card-content class="table-responsive">
+    <div *ngFor="let platformName of platformOrder" class="platform-group-section">
+      <div class="platform-group-header">
+        <h3 class="platform-group-title">
+          <mat-icon class="platform-group-icon">domain</mat-icon>
+          {{ platformName }}
+          <span class="platform-count">({{ (serversByPlatform.get(platformName) || []).length }} serveur{{ (serversByPlatform.get(platformName) || []).length > 1 ? 's' : '' }})</span>
+        </h3>
+      </div>
+      <table mat-table [dataSource]="serversByPlatform.get(platformName) || []" class="server-table">
+
+      <ng-container matColumnDef="platform">
+        <th mat-header-cell *matHeaderCellDef>Plateforme</th>
+        <td mat-cell *matCellDef="let row">
+          <a class="platform-chip platform-link" [routerLink]="['/platforms', row.platformId]" *ngIf="row.platformName && row.platformId; else noPlatform">
+            <mat-icon style="font-size: 14px; width: 14px; height: 14px; margin-right: 4px; vertical-align: text-bottom;">domain</mat-icon>
+            {{ row.platformName }}
+          </a>
+          <ng-template #noPlatform>
+            <span class="platform-chip" *ngIf="row.platformName; else emptyPlatform">
+              <mat-icon style="font-size: 14px; width: 14px; height: 14px; margin-right: 4px; vertical-align: text-bottom;">domain</mat-icon>
+              {{ row.platformName }}
+            </span>
+          </ng-template>
+          <ng-template #emptyPlatform>
+            <span class="no-data">—</span>
+          </ng-template>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="hostname">
+        <th mat-header-cell *matHeaderCellDef>Hostname</th>
+        <td mat-cell *matCellDef="let row">
+          <a [routerLink]="['/servers', row.id]" [queryParams]="{ source: 'servers' }" class="hostname-cell">
+            <span class="hostname-text">{{ row.hostname }}</span>
+            <span class="type-badge" *ngIf="row.serverTypeName">{{ row.serverTypeName }}</span>
+          </a>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let row">
+          <span class="status-badge" [class]="'status-' + row.status">
+            <span class="status-dot"></span>
+            {{ row.status }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="instances">
+        <th mat-header-cell *matHeaderCellDef>Instances</th>
+        <td mat-cell *matCellDef="let row">
+          <div class="instance-list">
+            <span class="instance-chip" *ngFor="let instance of (row.instances || []).slice(0, 3)">
+              {{ instance.instanceName || instance.name || instance }}
+            </span>
+            <span class="instance-chip more" *ngIf="(row.instances || []).length > 3">
+              +{{ (row.instances || []).length - 3 }}
+            </span>
+            <span class="no-data" *ngIf="!row.instances || row.instances.length === 0">—</span>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="mode">
+        <th mat-header-cell *matHeaderCellDef>Mode</th>
+        <td mat-cell *matCellDef="let row">
+          <span class="mode-chip">{{ row.serverMode }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="ips">
+        <th mat-header-cell *matHeaderCellDef>Adresse IP</th>
+        <td mat-cell *matCellDef="let row">
+          <div class="ip-list">
+            <span class="ip-chip" *ngIf="row.ipAddress">{{ row.ipAddress }}</span>
+            <span class="no-data" *ngIf="!row.ipAddress">—</span>
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="backup">
+        <th mat-header-cell *matHeaderCellDef>Adresse Backup</th>
+        <td mat-cell *matCellDef="let row">
+          <div *ngIf="row.backupPolicy && row.backupPolicy.backupAddress; else noBackup">
+            <span class="backup-chip" [matTooltip]="row.backupPolicy.backupAddress">
+              <mat-icon class="backup-icon">cloud_upload</mat-icon>
+              {{ row.backupPolicy.backupAddress }}
+            </span>
+          </div>
+          <ng-template #noBackup>
+            <span class="no-backup">-</span>
+          </ng-template>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="alert">
+        <th mat-header-cell *matHeaderCellDef>Alerte</th>
+        <td mat-cell *matCellDef="let row" class="alert-col-cell">
+          <mat-icon
+            *ngIf="hasServerIssue(row)"
+            class="issue-triangle"
+            matTooltip="Serveur en alerte"
+            aria-label="Serveur en alerte"
+          >
+            warning
+          </mat-icon>
+          <span *ngIf="!hasServerIssue(row)" class="alert-empty">-</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let row">
+          <!-- Non-archived actions -->
+          <ng-container *ngIf="!showArchived">
+            <button mat-icon-button color="primary" (click)="exportServerExcel(row)"
+              matTooltip="Exporter Excel serveur">
+              <mat-icon>download</mat-icon>
+            </button>
+            <button mat-icon-button color="primary" (click)="importServerExcel(row)" *ngIf="canEdit"
+              matTooltip="Importer Excel (mise a jour serveur)">
+              <mat-icon>upload_file</mat-icon>
+            </button>
+            <button mat-icon-button color="primary" [routerLink]="['/servers/new']" [queryParams]="{ cloneId: row.id }" *ngIf="canAdd"
+              matTooltip="Copier serveur">
+              <mat-icon>content_copy</mat-icon>
+            </button>
+            <button mat-icon-button color="primary" [routerLink]="['/servers/edit', row.id]" *ngIf="canEdit"
+              matTooltip="Modifier serveur">
+              <mat-icon>edit</mat-icon>
+            </button>
+            <button mat-icon-button color="accent" (click)="deleteServer(row.id)" *ngIf="canArchive"
+              matTooltip="Archiver serveur">
+              <mat-icon>archive</mat-icon>
+            </button>
+          </ng-container>
+
+          <!-- Archived actions (ADMIN only) -->
+          <ng-container *ngIf="showArchived">
+            <button mat-icon-button color="primary" (click)="restoreServer(row.id)" *ngIf="canDelete"
+              matTooltip="Restaurer serveur">
+              <mat-icon>unarchive</mat-icon>
+            </button>
+            <button mat-icon-button color="warn" (click)="hardDeleteServer(row.id)" *ngIf="canDelete"
+              matTooltip="Supprimer définitivement">
+              <mat-icon>delete_forever</mat-icon>
+            </button>
+          </ng-container>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr
+        mat-row
+        *matRowDef="let row; columns: displayedColumns;"
+        class="table-row"
+        [ngClass]="hasServerIssue(row) ? 'issue-row' : 'healthy-row'"
+      ></tr>
+    </table>
+    </div>
+
+    <p *ngIf="servers.length === 0" class="empty-hint">
+      <mat-icon>dns</mat-icon><br>
+      Aucun serveur trouvé{{ searchHostname ? ' correspondant à "' + searchHostname + '"' : '' }}.
+    </p>
+  </mat-card-content>
+</mat-card>

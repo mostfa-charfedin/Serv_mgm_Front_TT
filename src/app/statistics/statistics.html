@@ -1,0 +1,213 @@
+<div class="dashboard-wrapper">
+  <div class="dash-header">
+    <div>
+      <h2>Statistiques Globales</h2>
+      <p class="subtitle">Analyse détaillée de l'infrastructure et des ressources</p>
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div *ngIf="loading" class="spinner-center">
+    <mat-spinner diameter="50"></mat-spinner>
+  </div>
+
+  <!-- Metrics Summary -->
+  <div class="stat-sidebar" *ngIf="!loading">
+    <div class="stat-card stat-total metric-card">
+      <div class="stat-icon-wrap"><mat-icon>dns</mat-icon></div>
+      <div class="stat-info">
+        <span class="stat-value">{{ totalServers }}</span>
+        <span class="stat-label">Total Servers</span>
+      </div>
+    </div>
+    <div class="stat-card stat-up metric-card">
+      <div class="stat-icon-wrap"><mat-icon>check_circle</mat-icon></div>
+      <div class="stat-info">
+        <span class="stat-value">{{ upCount }}</span>
+        <span class="stat-label">Online (UP)</span>
+      </div>
+    </div>
+    <div class="stat-card stat-down metric-card">
+      <div class="stat-icon-wrap"><mat-icon>cancel</mat-icon></div>
+      <div class="stat-info">
+        <span class="stat-value">{{ downCount }}</span>
+        <span class="stat-label">Offline (DOWN)</span>
+      </div>
+    </div>
+    <div class="stat-card stat-maint metric-card">
+      <div class="stat-icon-wrap"><mat-icon>build</mat-icon></div>
+      <div class="stat-info">
+        <span class="stat-value">{{ maintCount }}</span>
+        <span class="stat-label">In Maintenance</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resource Metrics (CPU, RAM, Storage) -->
+  <div class="resources-metrics-section" *ngIf="!loading && totalServers > 0">
+    <mat-card class="resource-card cpu-card" *ngIf="totalServersWithCpu > 0">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="resource-icon cpu-icon">speed</mat-icon>
+        <mat-card-title>CPU Total</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="resource-content">
+          <div class="resource-stats">
+            <div class="resource-value" style="color: #6366f1;">{{ totalCpu }}</div>
+            <div class="resource-info">
+              <span class="resource-display">Cores alloués sur {{ totalServersWithCpu }} serveurs</span>
+            </div>
+          </div>
+          <div class="resource-bar">
+            <div class="resource-progress" [style.width.%]="100" style="background-color: #6366f1;"></div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+    <mat-card class="resource-card ram-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="resource-icon ram-icon">memory</mat-icon>
+        <mat-card-title>RAM Totale</mat-card-title>
+      </mat-card-header>
+      <div class="unit-selector-wrapper">
+        <label>Unité :</label>
+        <select [(ngModel)]="ramUnit" class="unit-selector">
+          <option value="B">Bytes</option>
+          <option value="KB">KB</option>
+          <option value="MB">MB</option>
+          <option value="GB">GB</option>
+          <option value="TB">TB</option>
+        </select>
+      </div>
+      <mat-card-content>
+        <div class="resource-content">
+          <div class="resource-stats">
+            <div class="resource-value" [style.color]="getRamPercentageColor()">{{ ramPercentage }}%</div>
+            <div class="resource-info">
+              <span class="resource-display">{{ getRamDisplay() }}</span>
+            </div>
+          </div>
+          <div class="resource-bar">
+            <div class="resource-progress" [style.width.%]="ramPercentage" [style.backgroundColor]="getRamPercentageColor()"></div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="resource-card storage-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="resource-icon storage-icon">storage</mat-icon>
+        <mat-card-title>Stockage Total</mat-card-title>
+      </mat-card-header>
+      <div class="unit-selector-wrapper">
+        <label>Unité :</label>
+        <select [(ngModel)]="storageUnit" class="unit-selector">
+          <option value="B">Bytes</option>
+          <option value="KB">KB</option>
+          <option value="MB">MB</option>
+          <option value="GB">GB</option>
+          <option value="TB">TB</option>
+        </select>
+      </div>
+      <mat-card-content>
+        <div class="resource-content">
+          <div class="resource-stats">
+            <div class="resource-value" [style.color]="getStoragePercentageColor()">{{ storagePercentage }}%</div>
+            <div class="resource-info">
+              <span class="resource-display">{{ getStorageDisplay() }}</span>
+            </div>
+          </div>
+          <div class="resource-bar">
+            <div class="resource-progress" [style.width.%]="storagePercentage" [style.backgroundColor]="getStoragePercentageColor()"></div>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- SGBD Metrics -->
+  <div class="sgbd-section" *ngIf="!loading && sgbdStats.length">
+    <div class="sgbd-header">
+      <mat-icon>storage</mat-icon>
+      <span>Serveurs par SGBD</span>
+    </div>
+    <div class="sgbd-grid">
+      <div class="stat-card stat-sgbd sgbd-card" *ngFor="let sgbd of sgbdStats">
+        <div class="stat-icon-wrap"><mat-icon>storage</mat-icon></div>
+        <div class="stat-info">
+          <span class="stat-value">{{ sgbd.count }}</span>
+          <span class="stat-label">{{ sgbd.name }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Server Type Metrics -->
+  <div class="server-type-section" *ngIf="!loading && serverTypeStats.length">
+    <div class="server-type-header">
+      <mat-icon>category</mat-icon>
+      <span>Serveurs par type de serveur</span>
+    </div>
+    <div class="server-type-grid">
+      <div class="stat-card stat-type server-type-card" *ngFor="let st of serverTypeStats">
+        <div class="stat-icon-wrap"><mat-icon>category</mat-icon></div>
+        <div class="stat-info">
+          <span class="stat-value">{{ st.count }}</span>
+          <span class="stat-label">{{ st.name }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts -->
+  <div class="charts-grid" *ngIf="!loading && totalServers > 0">
+    <mat-card class="chart-card chart-main">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="chart-icon env-icon">public</mat-icon>
+        <mat-card-title>Environnements</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="chart-content">
+        <canvas baseChart [data]="envChartData" [options]="envChartOptions" [type]="'doughnut'"></canvas>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="chart-card chart-main">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="chart-icon os-icon">terminal</mat-icon>
+        <mat-card-title>Systèmes d'Exploitation</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="chart-content">
+        <canvas baseChart [data]="osChartData" [options]="envChartOptions" [type]="'doughnut'"></canvas>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="chart-card chart-main">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="chart-icon sgbd-icon">dns</mat-icon>
+        <mat-card-title>SGBD</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="chart-content">
+        <canvas baseChart [data]="sgbdChartData" [options]="envChartOptions" [type]="'doughnut'"></canvas>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- SGBD Releases -->
+  <div class="sgbd-releases-section" *ngIf="!loading && sgbdReleaseChartKeys.length">
+    <div class="section-header">
+      <mat-icon>auto_graph</mat-icon>
+      <span>Analyse des Releases par SGBD</span>
+    </div>
+    <div class="sgbd-releases-grid">
+      <mat-card class="sgbd-release-card" *ngFor="let key of sgbdReleaseChartKeys">
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="release-icon">storage</mat-icon>
+          <mat-card-title>{{ key }}</mat-card-title>
+        </mat-card-header>
+        <mat-card-content class="pie-content">
+          <canvas baseChart [data]="sgbdReleaseCharts.get(key)!" [options]="envChartOptions" [type]="'doughnut'"></canvas>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </div>
+</div>

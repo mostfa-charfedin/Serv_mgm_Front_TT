@@ -1,0 +1,460 @@
+<div class="detail-wrapper" *ngIf="!loading && server">
+  <div class="detail-header">
+    <div class="title-section">
+      <div class="title-with-status">
+        <div class="status-badge" [ngClass]="server.status.toLowerCase()">
+          {{ server.status }}
+        </div>
+        <div class="status-badge" [ngClass]="'env-' + (server.environmentName || server.environment)?.toLowerCase()">
+          {{ server.environmentName || server.environment }}
+        </div>
+        <h2>{{ server.hostname }}</h2>
+        <span style="color: #64748b; font-size: 18px;">({{ server.ipAddress }})</span>
+      </div>
+    </div>
+    <div class="actions" *ngIf="isAdmin">
+      <button mat-stroked-button color="primary" (click)="exportServerExcel()">
+        <mat-icon>download</mat-icon> Export Excel
+      </button>
+      <button mat-stroked-button color="primary" (click)="importServerExcel()">
+        <mat-icon>upload_file</mat-icon> Import Excel
+      </button>
+      <button mat-stroked-button color="accent" [routerLink]="['/servers/new']" [queryParams]="getCloneQueryParams()">
+        <mat-icon>content_copy</mat-icon> Copier
+      </button>
+      <button mat-stroked-button color="primary" [routerLink]="['/servers/edit', server.id]" [queryParams]="getEditQueryParams()">
+        <mat-icon>edit</mat-icon> Modifier
+      </button>
+    </div>
+  </div>
+
+  <div class="content-grid">
+    <!-- Info Card -->
+    <mat-card class="info-card">
+      <mat-card-header>
+        <mat-card-title>Informations Système</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="info-row">
+          <span class="label">OS:</span>
+          <span class="value">{{ server.operatingSystem?.name || server.operatingSystemName }} {{ server.operatingSystemVersion }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Type:</span>
+          <span class="value">{{ server.serverType?.name || server.serverTypeName }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">CPU:</span>
+          <span class="value">{{ server.cpu || 0 }}</span>
+        </div>
+        <div class="info-row">
+          <span class="label">Mode:</span>
+          <mat-chip-set><mat-chip>{{ server.serverMode }}</mat-chip></mat-chip-set>
+        </div>
+        <div class="info-row">
+          <span class="label">Plateforme:</span>
+          <a class="value platform-link" [routerLink]="['/platforms', server.platformId || server.platform?.id]" *ngIf="(server.platformName || (server.platform && server.platform.name)) && (server.platformId || server.platform?.id)">
+            <mat-icon class="inline-icon" color="primary">hub</mat-icon>
+            {{ server.platformName || server.platform?.name }}
+          </a>
+          <span class="value" *ngIf="(server.platformName || (server.platform && server.platform.name)) && !(server.platformId || server.platform?.id)">
+            <mat-icon class="inline-icon" color="primary">hub</mat-icon>
+            {{ server.platformName || server.platform?.name }}
+          </span>
+          <span class="value" *ngIf="!server.platformName && (!server.platform || !server.platform.name)">—</span>
+        </div>
+        <div class="info-row" *ngIf="server.clusterName || (server.cluster && server.cluster.name)">
+          <span class="label">Replication / Cluster:</span>
+          <span class="value">
+            <mat-icon class="inline-icon" color="accent">dns</mat-icon>
+            {{ server.clusterName || server.cluster?.name }} 
+            <span *ngIf="server.clusterRole">({{ server.clusterRole }})</span>
+          </span>
+        </div>
+        <div class="info-row" *ngIf="server.sgbdName || server.sgbdReleaseName || server.sgbdVersion">
+          <span class="label">SGBD:</span>
+          <span class="value" *ngIf="server.sgbdName">
+            {{ server.sgbdName }}
+            <span *ngIf="server.sgbdReleaseName"> {{ server.sgbdReleaseName }}</span>
+            <span *ngIf="!server.sgbdReleaseName && server.sgbdVersion"> {{ server.sgbdVersion }}</span>
+          </span>
+          <span class="value" *ngIf="!server.sgbdName">{{ server.sgbdVersion }}</span>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- CPU Chart -->
+    <mat-card class="chart-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="chart-icon cpu-icon">speed</mat-icon>
+        <mat-card-title>Utilisation CPU</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="chart-container">
+          <canvas baseChart [data]="cpuChartData" [options]="chartOptions" [type]="'doughnut'"></canvas>
+          <div class="chart-overlay">
+            <span class="percentage" [style.color]="server.cpuUsage >= 80 ? 'red' : 'inherit'">{{ server.cpuUsage || 0 }}%</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <!-- RAM Chart -->
+    <mat-card class="chart-card">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="chart-icon ram-icon">memory</mat-icon>
+        <mat-card-title>Utilisation RAM</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="chart-container">
+          <canvas baseChart [data]="ramChartData" [options]="chartOptions" [type]="'doughnut'"></canvas>
+          <div class="chart-overlay">
+            <span class="percentage" [style.color]="getRamPercent() >= 80 ? 'red' : 'inherit'">{{ getRamPercent() }}%</span>
+            <span class="percentage-small" *ngIf="server.ramTotal" [style.color]="getRamPercent() >= 80 ? 'red' : 'inherit'">
+              Utilise: {{ getRamUsedDisplay() | number:'1.0-2' }} GB ({{ getRamPercent() }}%)
+            </span>
+            <span class="percentage-small" *ngIf="getRamAvailable() !== null" [style.color]="getRamPercent() >= 80 ? 'red' : 'inherit'">
+              Disponible: {{ getRamAvailable() | number:'1.0-2' }} GB ({{ getRamFreePercent() }}%)
+            </span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Comments Section -->
+  <mat-card class="full-width-card" *ngIf="server.comment">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-avatar-icon comment-icon">comment</mat-icon>
+      <mat-card-title>Commentaires Serveur</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p class="comment-text">{{ server.comment }}</p>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- TableSpaces -->
+  <mat-card class="full-width-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-avatar-icon disk-icon">table_chart</mat-icon>
+      <mat-card-title>TableSpaces</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <ng-container *ngIf="server.tableSpaces?.length; else noTableSpaces">
+        <div class="ts-group" *ngFor="let group of getTableSpaceGroups()">
+        <h4 class="ts-group-title">
+          <mat-icon class="inline-icon">dns</mat-icon>
+          Instance: {{ group.instanceName }}
+          <span class="ts-group-count">({{ group.tableSpaces.length }} table space(s))</span>
+        </h4>
+
+        <div class="detail-table-wrapper">
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th>Nom</th>
+                <th>Capacité (GB)</th>
+                <th>Utilisé (%)</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let ts of group.tableSpaces" [style.background-color]="isHighTS(ts) ? '#fff1f1' : 'transparent'">
+                <td><mat-icon class="inline-icon" [style.color]="isHighTS(ts) ? 'red' : 'inherit'">table_rows</mat-icon> <span [style.color]="isHighTS(ts) ? 'red' : 'inherit'">{{ ts.name }}</span></td>
+                <td>{{ formatStorage(ts.capacity) }}</td>
+                <td>
+                  <div class="progress-bar-wrapper">
+                    <div class="progress-bar" [style.width.%]="ts.usedPercent || 0" [style.background-color]="isHighTS(ts) ? '#ef4444' : '#3b82f6'"></div>
+                    <span class="progress-label">{{ (ts.usedPercent || 0) | number:'1.2-2' }}%</span>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      </ng-container>
+      <ng-template #noTableSpaces>
+        <p class="no-data-hint">Il n'y a pas de TableSpaces</p>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Disks -->
+  <mat-card class="full-width-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-avatar-icon disk-icon">storage</mat-icon>
+      <mat-card-title>Disques</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <ng-container *ngIf="server.disks?.length; else noDisks">
+        <div class="detail-table-wrapper">
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>Nom</th>
+              <th>Taille max (GB)</th>
+              <th>Utilisé (%)</th>
+              <th>Disponible (GB)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let disk of server.disks" [style.background-color]="isHighDisk(disk) ? '#fff1f1' : 'transparent'">
+              <td><mat-icon class="inline-icon" [style.color]="isHighDisk(disk) ? 'red' : 'inherit'">storage</mat-icon> <span [style.color]="isHighDisk(disk) ? 'red' : 'inherit'">{{ disk.name }}</span></td>
+              <td>{{ formatStorage(disk.maxSize) }}</td>
+              <td>
+                <div class="progress-bar-wrapper">
+                  <div class="progress-bar" [style.width.%]="getDiskPercent(disk)" [style.background-color]="isHighDisk(disk) ? '#ef4444' : '#3b82f6'"></div>
+                  <span class="progress-label">
+                    {{ getDiskPercent(disk) | number:'1.2-2' }}%
+                    <span *ngIf="getDiskUsed(disk) !== null && disk.maxSize"> ({{ formatStorage(getDiskUsed(disk)) }} / {{ formatStorage(disk.maxSize) }})</span>
+                  </span>
+                </div>
+              </td>
+              <td>{{ formatStorage(disk.availableStorage) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      </ng-container>
+      <ng-template #noDisks>
+        <p class="no-data-hint">Il n'y a pas de disques</p>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Instances -->
+  <mat-card class="full-width-card" *ngIf="!server.instances?.length">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-avatar-icon instance-sync-icon">dns</mat-icon>
+      <mat-card-title>Instances</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <p class="no-data-hint">Il n'y a pas d'instances</p>
+    </mat-card-content>
+  </mat-card>
+
+  <div class="instances-container" *ngIf="server.instances?.length">
+    <mat-card class="full-width-card instance-detail-card" *ngFor="let inst of server.instances" style="margin-bottom: 16px;">
+      <mat-card-header>
+        <mat-icon mat-card-avatar class="section-avatar-icon" [ngClass]="inst.isSynchronized ? 'instance-sync-icon' : 'instance-unsync-icon'">
+          {{ inst.isSynchronized ? 'sync' : 'dns' }}
+        </mat-icon>
+        <mat-card-title>{{ inst.name }}</mat-card-title>
+        <mat-card-subtitle>
+          <span *ngIf="inst.isSynchronized" style="color: #10b981; font-weight: 500;">
+            <mat-icon style="font-size: 14px; width: 14px; height: 14px; vertical-align: middle;">check_circle</mat-icon> Synchronisé
+          </span>
+          <span *ngIf="!inst.isSynchronized" style="color: #64748b;">Non synchronisé</span>
+        </mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        <div *ngIf="inst.files?.length; else noFiles" class="detail-table-wrapper" style="margin-top: 12px;">
+          <table class="detail-table">
+            <thead>
+              <tr>
+                <th>Nom Fichier</th>
+                <th>Taille (MB)</th>
+                <th>Auto Extensible</th>
+                <th>Commentaire</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let file of inst.files">
+                <td><mat-icon class="inline-icon" style="color: #64748b;">insert_drive_file</mat-icon> {{ file.fileName }}</td>
+                <td>{{ file.size != null ? (file.size | number:'1.0-2') : '-' }}</td>
+                <td>
+                  <mat-icon *ngIf="file.autoExtensible" style="color: #10b981; vertical-align: middle;">check</mat-icon>
+                  <mat-icon *ngIf="!file.autoExtensible" style="color: #ef4444; vertical-align: middle;">close</mat-icon>
+                </td>
+                <td>{{ file.comment || '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <ng-template #noFiles>
+          <p class="no-data-hint" style="margin-top: 12px; font-size: 13px;">Aucun fichier associé à cette instance.</p>
+        </ng-template>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Availability Groups -->
+  <mat-card class="full-width-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-avatar-icon" style="background:#e0f2fe; color:#0369a1;">group_work</mat-icon>
+      <mat-card-title>Availability Groups</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <ng-container *ngIf="server.availabilityGroups?.length; else noAg">
+      <div class="detail-table-wrapper">
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>Nom du Groupe</th>
+              <th>Statut (Rôle)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let ag of server.availabilityGroups">
+              <td><strong>{{ ag.groupName }}</strong></td>
+              <td>
+                <mat-chip [color]="ag.groupStatus === 'PRIMARY' ? 'accent' : 'primary'">
+                  {{ ag.groupStatus }}
+                </mat-chip>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      </ng-container>
+      <ng-template #noAg>
+        <p class="no-data-hint">Il n'y a pas d'Availability Groups</p>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Server Errors -->
+  <mat-card class="full-width-card" *ngIf="server.serverErrors?.length">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-avatar-icon" style="color: #ef4444; background: #fee2e2;">error</mat-icon>
+      <mat-card-title>Erreurs</mat-card-title>
+    </mat-card-header>
+    <mat-card-content>
+      <div class="error-filters">
+        <mat-form-field appearance="outline" class="error-filter-field">
+          <mat-label>Nom d'erreur</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput [(ngModel)]="errorNameFilter" placeholder="Filtrer par nom d'erreur">
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="error-filter-field">
+          <mat-label>Date début</mat-label>
+          <input matInput [matDatepicker]="errorDateFromPicker" [(ngModel)]="errorDateFrom" placeholder="jj-mm-aaaa">
+          <mat-datepicker-toggle matSuffix [for]="errorDateFromPicker"></mat-datepicker-toggle>
+          <mat-datepicker #errorDateFromPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="error-filter-field">
+          <mat-label>Date fin</mat-label>
+          <input matInput [matDatepicker]="errorDateToPicker" [(ngModel)]="errorDateTo" placeholder="jj-mm-aaaa">
+          <mat-datepicker-toggle matSuffix [for]="errorDateToPicker"></mat-datepicker-toggle>
+          <mat-datepicker #errorDateToPicker></mat-datepicker>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="error-filter-field">
+          <mat-label>Tri</mat-label>
+          <mat-icon matPrefix>sort</mat-icon>
+          <mat-select [(ngModel)]="errorSortDirection">
+            <mat-option value="desc">Date décroissante</mat-option>
+            <mat-option value="asc">Date croissante</mat-option>
+          </mat-select>
+        </mat-form-field>
+
+        <button mat-stroked-button type="button" class="error-clear-button" (click)="clearErrorFilters()">
+          <mat-icon>filter_alt_off</mat-icon>
+          Annuler filtres
+        </button>
+      </div>
+      <div class="detail-table-wrapper">
+        <table class="detail-table">
+          <thead>
+            <tr>
+              <th>Date Apparition</th>
+              <th>Nom Erreur</th>
+              <th>Description</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let err of getFilteredErrors()">
+              <td>{{ err.appearanceDate | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td style="font-weight: 600;">{{ err.errorName }}</td>
+              <td style="color: #64748b;">{{ err.description }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </mat-card-content>
+  </mat-card>
+
+  <!-- Backup Policy & History -->
+  <mat-card class="full-width-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-avatar-icon backup-icon">backup</mat-icon>
+      <mat-card-title>Sauvegardes <span *ngIf="server.backupEnabled && server.backupPolicy">— {{ server.backupPolicy.policyName || 'Sans nom' }}</span></mat-card-title>
+      <mat-card-subtitle *ngIf="server.backupEnabled && server.backupPolicy?.backupAddress">
+        Adresse globale: {{ server.backupPolicy.backupAddress }}
+      </mat-card-subtitle>
+    </mat-card-header>
+    <mat-card-content>
+      <ng-container *ngIf="server.backupEnabled && server.backupPolicy; else noBackup">
+      <p style="margin-bottom: 20px;" *ngIf="server.backupPolicy.generalComment"><strong>Notes: </strong>{{ server.backupPolicy.generalComment }}</p>
+
+      <mat-tab-group>
+        <mat-tab *ngFor="let bt of getBackupTypes()" [label]="bt.typeBackup">
+          <div style="padding: 20px 0;">
+            <!-- Policy Info -->
+            <div class="backup-details" style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
+               <span><mat-icon>folder</mat-icon> <strong>Stockage:</strong> {{ bt.storagePath }}</span>
+               <span *ngIf="bt.selectedDays"><mat-icon>calendar_today</mat-icon> <strong>Planification:</strong> {{ formatDays(bt.selectedDays) }}</span>
+               <span *ngIf="bt.scheduleStartTime"><mat-icon>schedule</mat-icon> <strong>Heure:</strong> {{ bt.scheduleStartTime }} - {{ bt.scheduleEndTime }}</span>
+            </div>
+
+            <!-- History Table -->
+            <h4>Historique {{ bt.typeBackup }}</h4>
+            <div class="detail-table-wrapper">
+              <table class="detail-table">
+                <thead>
+                  <tr>
+                    <th>Date Planifiée</th>
+                    <th style="width: 100px; text-align: center;">Statut</th>
+                    <th>Commentaire Administrateur</th>
+                    <th *ngIf="isAdmin" style="width: 100px;">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr *ngFor="let h of getHistoryForCurrentTab(bt.typeBackup)">
+                    <td>{{ h.scheduledDate | date:'dd/MM/yyyy' }}</td>
+                    <td style="text-align: center;">
+                      <mat-icon class="history-status-icon passed" *ngIf="h.passed === true" matTooltip="Passé">check_circle</mat-icon>
+                      <mat-icon class="history-status-icon failed" *ngIf="h.passed === false" matTooltip="Échoué">cancel</mat-icon>
+                      <mat-icon class="history-status-icon pending" *ngIf="h.passed === null" matTooltip="En attente">help_outline</mat-icon>
+                    </td>
+                    <td>
+                      <span *ngIf="!h.isEditing">{{ h.userComment || '—' }}</span>
+                      <input *ngIf="h.isEditing" type="text" class="history-comment-input" [(ngModel)]="h.editComment" placeholder="Saisir commentaire...">
+                    </td>
+                    <td *ngIf="isAdmin">
+                      <div *ngIf="!h.isEditing">
+                        <button mat-icon-button color="primary" (click)="editHistory(h)"><mat-icon>edit</mat-icon></button>
+                      </div>
+                      <div *ngIf="h.isEditing" style="display: flex; gap: 4px;">
+                        <button mat-icon-button color="primary" (click)="saveHistory(h, true)" matTooltip="Marquer Succès"><mat-icon>check_circle</mat-icon></button>
+                        <button mat-icon-button color="warn" (click)="saveHistory(h, false)" matTooltip="Marquer Échec"><mat-icon>cancel</mat-icon></button>
+                        <button mat-icon-button (click)="cancelEditHistory(h)"><mat-icon>close</mat-icon></button>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <mat-paginator [length]="historyTotals[bt.typeBackup] || 0" 
+                             [pageSize]="historyPageSizes[bt.typeBackup] || 5" 
+                             [pageSizeOptions]="[5, 10, 25]"
+                             [pageIndex]="historyPages[bt.typeBackup] || 0"
+                             (page)="onHistoryPageChange(bt.typeBackup, $event)">
+              </mat-paginator>
+            </div>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+      </ng-container>
+      <ng-template #noBackup>
+        <p class="no-data-hint">Il n'y a pas de sauvegarde (Backup non activé ou aucune politique définie)</p>
+      </ng-template>
+    </mat-card-content>
+  </mat-card>
+
+</div>
+
+<div *ngIf="loading" class="spinner-center">
+  <mat-spinner></mat-spinner>
+</div>
