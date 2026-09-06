@@ -67,7 +67,7 @@
           <span class="label">Replication / Cluster:</span>
           <span class="value">
             <mat-icon class="inline-icon" color="accent">dns</mat-icon>
-            {{ server.clusterName || server.cluster?.name }} 
+            {{ server.clusterName || server.cluster?.name }}
             <span *ngIf="server.clusterRole">({{ server.clusterRole }})</span>
           </span>
         </div>
@@ -380,17 +380,19 @@
   <mat-card class="full-width-card">
     <mat-card-header>
       <mat-icon mat-card-avatar class="section-avatar-icon backup-icon">backup</mat-icon>
-      <mat-card-title>Sauvegardes <span *ngIf="server.backupEnabled && server.backupPolicy">— {{ server.backupPolicy.policyName || 'Sans nom' }}</span></mat-card-title>
-      <mat-card-subtitle *ngIf="server.backupEnabled && server.backupPolicy?.backupAddress">
-        Adresse globale: {{ server.backupPolicy.backupAddress }}
+      <mat-card-title>Sauvegardes</mat-card-title>
+      <mat-card-subtitle *ngIf="server.backupPolicy?.backupAddress">
+        Policy globale: {{ server.backupPolicy.policyName || 'Sans nom' }} · {{ server.backupPolicy.backupAddress }}
       </mat-card-subtitle>
     </mat-card-header>
     <mat-card-content>
-      <ng-container *ngIf="server.backupEnabled && server.backupPolicy; else noBackup">
-      <p style="margin-bottom: 20px;" *ngIf="server.backupPolicy.generalComment"><strong>Notes: </strong>{{ server.backupPolicy.generalComment }}</p>
+      <ng-container *ngIf="getBackupInstances().length; else noBackup">
+      <p style="margin-bottom: 20px;" *ngIf="server.backupPolicy?.generalComment"><strong>Notes: </strong>{{ server.backupPolicy.generalComment }}</p>
 
-      <mat-tab-group>
-        <mat-tab *ngFor="let bt of getBackupTypes()" [label]="bt.typeBackup">
+      <div *ngFor="let instance of getBackupInstances()" style="margin-bottom: 24px;">
+        <h3>Instance : {{ instance.name }}</h3>
+        <mat-tab-group>
+        <mat-tab *ngFor="let bt of instance.backupTypes" [label]="bt.typeBackup">
           <div style="padding: 20px 0;">
             <!-- Policy Info -->
             <div class="backup-details" style="margin-bottom: 20px; display: flex; flex-direction: column; gap: 8px;">
@@ -405,15 +407,18 @@
               <table class="detail-table">
                 <thead>
                   <tr>
-                    <th>Date Planifiée</th>
+                    <th>Date et heure planifiées</th>
                     <th style="width: 100px; text-align: center;">Statut</th>
                     <th>Commentaire Administrateur</th>
                     <th *ngIf="isAdmin" style="width: 100px;">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr *ngFor="let h of getHistoryForCurrentTab(bt.typeBackup)">
-                    <td>{{ h.scheduledDate | date:'dd/MM/yyyy' }}</td>
+                  <tr *ngFor="let h of getHistoryForCurrentTab(instance.id, bt)">
+                    <td>
+                      {{ h.scheduledDate | date:'dd/MM/yyyy' }}
+                      <span *ngIf="h.scheduledAt"> à {{ h.scheduledAt | date:'HH:mm' }}</span>
+                    </td>
                     <td style="text-align: center;">
                       <mat-icon class="history-status-icon passed" *ngIf="h.passed === true" matTooltip="Passé">check_circle</mat-icon>
                       <mat-icon class="history-status-icon failed" *ngIf="h.passed === false" matTooltip="Échoué">cancel</mat-icon>
@@ -424,8 +429,12 @@
                       <input *ngIf="h.isEditing" type="text" class="history-comment-input" [(ngModel)]="h.editComment" placeholder="Saisir commentaire...">
                     </td>
                     <td *ngIf="isAdmin">
-                      <div *ngIf="!h.isEditing">
+                      <div *ngIf="!h.isEditing && h.passed !== null" style="display: flex; gap: 4px;">
                         <button mat-icon-button color="primary" (click)="editHistory(h)"><mat-icon>edit</mat-icon></button>
+                      </div>
+                      <div *ngIf="!h.isEditing && h.passed === null" style="display: flex; gap: 4px;">
+                        <button mat-icon-button color="primary" (click)="saveHistory(h, true)" matTooltip="Marquer comme réussi"><mat-icon>check_circle</mat-icon></button>
+                        <button mat-icon-button color="warn" (click)="saveHistory(h, false)" matTooltip="Marquer comme échoué"><mat-icon>cancel</mat-icon></button>
                       </div>
                       <div *ngIf="h.isEditing" style="display: flex; gap: 4px;">
                         <button mat-icon-button color="primary" (click)="saveHistory(h, true)" matTooltip="Marquer Succès"><mat-icon>check_circle</mat-icon></button>
@@ -436,16 +445,17 @@
                   </tr>
                 </tbody>
               </table>
-              <mat-paginator [length]="historyTotals[bt.typeBackup] || 0" 
-                             [pageSize]="historyPageSizes[bt.typeBackup] || 5" 
+              <mat-paginator [length]="historyTotals[historyKey(instance.id, bt)] || 0"
+                             [pageSize]="historyPageSizes[historyKey(instance.id, bt)] || 5"
                              [pageSizeOptions]="[5, 10, 25]"
-                             [pageIndex]="historyPages[bt.typeBackup] || 0"
-                             (page)="onHistoryPageChange(bt.typeBackup, $event)">
+                             [pageIndex]="historyPages[historyKey(instance.id, bt)] || 0"
+                             (page)="onHistoryPageChange(instance.id, bt, $event)">
               </mat-paginator>
             </div>
           </div>
         </mat-tab>
-      </mat-tab-group>
+        </mat-tab-group>
+      </div>
       </ng-container>
       <ng-template #noBackup>
         <p class="no-data-hint">Il n'y a pas de sauvegarde (Backup non activé ou aucune politique définie)</p>

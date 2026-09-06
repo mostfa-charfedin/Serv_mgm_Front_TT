@@ -111,11 +111,12 @@ export class ServerFormComponent implements OnInit {
         return this.selectedPlatforms.map(p => p.name || `Platform ${p.id}`);
     }
 
-    backupTypeOptions = [
+    backupTypeSuggestions = [
         { value: 'FULL', label: 'Full' },
         { value: 'INC', label: 'Incrémental' },
         { value: 'DIFF_INC', label: 'Différentiel Incrémental' },
-        { value: 'TRANSACTION_LOG', label: 'Transaction Log' }
+        { value: 'TRANSACTION_LOG', label: 'Transaction Log' },
+        { value: 'CUSTOM', label: 'Personnalisé' }
     ];
 
     dayOptions = [
@@ -136,10 +137,6 @@ export class ServerFormComponent implements OnInit {
         this.buildForm();
         this.loadDropdowns();
 
-        this.form.get('backupEnabled')?.valueChanges.subscribe(enabled => {
-            this.updateBackupValidators(enabled);
-        });
-
         this.form.get('platformIds')?.valueChanges.subscribe((platformIds: number[] | null) => {
             const primaryPlatformId = this.getPrimaryPlatformId(platformIds);
             if (primaryPlatformId) {
@@ -147,6 +144,15 @@ export class ServerFormComponent implements OnInit {
             } else {
                 this.clusters = [];
                 this.form.get('clusterId')?.setValue(null);
+            }
+        });
+
+        this.form.get('backupPolicy.policyName')?.valueChanges.subscribe(() => {
+            const control = this.form.get('backupPolicy.policyName');
+            if (control?.hasError('backendUnique')) {
+                const errors = { ...(control.errors || {}) };
+                delete errors['backendUnique'];
+                control.setErrors(Object.keys(errors).length ? errors : null);
             }
         });
 
@@ -191,7 +197,7 @@ export class ServerFormComponent implements OnInit {
             policyName?.clearValidators();
             backupAddress?.clearValidators();
         }
-        
+
         policyName?.updateValueAndValidity();
         backupAddress?.updateValueAndValidity();
     }
@@ -216,7 +222,6 @@ export class ServerFormComponent implements OnInit {
             ramUsed: [0],
             ramTotal: [0],
             ramPercentage: [0],
-            backupEnabled: [false],
             availabilityGroupEnabled: [false],
             comment: [''],
             instances: this.fb.array([], this.uniqueInstanceNamesValidator.bind(this)),
@@ -228,8 +233,7 @@ export class ServerFormComponent implements OnInit {
                 id: [null],
                 policyName: [''],
                 backupAddress: [''],
-                generalComment: [''],
-                backupTypes: this.fb.array([])
+                generalComment: ['']
             })
         }, { validators: [this.ramUsageValidator.bind(this)] });
     }
@@ -267,11 +271,18 @@ export class ServerFormComponent implements OnInit {
 
     uniqueTableSpaceNamesValidator(control: AbstractControl): ValidationErrors | null {
         const arr = control as FormArray;
-        const names = arr.controls
-            .map(c => this.normalizeForUnique(c.get('name')?.value))
-            .filter(n => !!n);
-        const uniqueNames = new Set(names);
-        if (uniqueNames.size !== names.length) return { duplicateTableSpaceNames: true };
+        const namesByInstance = new Map<string, string[]>();
+        arr.controls.forEach(c => {
+            const instance = this.normalizeForUnique(c.get('instanceName')?.value);
+            const name = this.normalizeForUnique(c.get('name')?.value);
+            if (!instance || !name) return;
+            const names = namesByInstance.get(instance) || [];
+            names.push(name);
+            namesByInstance.set(instance, names);
+        });
+        if ([...namesByInstance.values()].some(names => new Set(names).size !== names.length)) {
+            return { duplicateTableSpaceNames: true };
+        }
         return null;
     }
 
@@ -283,13 +294,6 @@ export class ServerFormComponent implements OnInit {
         const uniqueNames = new Set(names);
         if (uniqueNames.size !== names.length) return { duplicateAvailabilityGroupNames: true };
         return null;
-    }
-
-    backupTimeRangeValidator(control: AbstractControl): ValidationErrors | null {
-        const start = control.get('scheduleStartTime')?.value;
-        const end = control.get('scheduleEndTime')?.value;
-        if (!start || !end) return null;
-        return start < end ? null : { invalidBackupTimeRange: true };
     }
 
     notFutureDateTimeValidator(control: AbstractControl): ValidationErrors | null {
@@ -332,7 +336,6 @@ export class ServerFormComponent implements OnInit {
                         this.instanceArray.clear();
                         this.tableSpaceArray.clear();
                         this.serverErrorArray.clear();
-                        this.backupTypesArray.clear();
 
                         const platformIdsToSet: number[] = Array.isArray(server.platformIds)
                             ? server.platformIds
@@ -363,8 +366,10 @@ export class ServerFormComponent implements OnInit {
                             ramUsed: server.ramUsed || 0,
                             ramTotal: server.ramTotal || 0,
                             ramPercentage: server.ramPercentage || 0,
-                            backupEnabled: server.backupEnabled,
                             comment: server.comment || '',
+                        });
+
+                        this.form.patchValue({
                             backupPolicy: {
                                 id: server.backupPolicy?.id || null,
                                 policyName: server.backupPolicy?.policyName || '',
@@ -372,8 +377,9 @@ export class ServerFormComponent implements OnInit {
                                 generalComment: server.backupPolicy?.generalComment || ''
                             }
                         });
-
-                        (server.instances || []).forEach((inst: any) => this.addInstance(inst.name, inst.isSynchronized, inst.id, inst.files || []));
+                        (server.instances || []).forEach((inst: any) => this.addInstance(
+                            inst.name, inst.isSynchronized, inst.id, inst.files || [], inst.backupTypes || []
+                        ));
                         (server.disks || []).forEach((d: any) => this.addDisk(d.name, d.maxSize, d.usedPercentage, d.availableStorage, d.id));
                         (server.tableSpaces || []).forEach((ts: any) =>
                             this.addTableSpace(ts.name, ts.capacity, ts.usedPercent, ts.id, ts.instanceName || '')
@@ -384,12 +390,11 @@ export class ServerFormComponent implements OnInit {
                             this.toDateTimeLocalValue(se.appearanceDate),
                             se.id
                         ));
-                        (server.availabilityGroups || []).forEach((ag: any) => this.addAvailabilityGroup(ag.groupName, ag.groupStatus, ag.id));
-                        (server.backupPolicy?.backupTypes || []).forEach((bt: any) =>
-                            this.addBackupType(bt.typeBackup, bt.storagePath, bt.selectedDays, bt.scheduleStartTime, bt.scheduleEndTime, bt.id)
-                        );
-
-                        if (server.availabilityGroups && server.availabilityGroups.length > 0) {
+                        if (server.availabilityGroup) {
+                            const ag = server.availabilityGroup;
+                            this.addAvailabilityGroup(ag.groupName, ag.groupStatus, ag.id);
+                        }
+                        if (server.availabilityGroup) {
                             this.form.patchValue({ availabilityGroupEnabled: true });
                         }
 
@@ -401,9 +406,6 @@ export class ServerFormComponent implements OnInit {
                             this.form.markAsDirty();
                         }
 
-                        if (this.form.get('backupEnabled')?.value) {
-                            this.updateBackupValidators(true);
-                        }
                         if (server.sgbdId) {
                             this.loadSgbdReleases(server.sgbdId);
                         }
@@ -424,14 +426,17 @@ export class ServerFormComponent implements OnInit {
     get tableSpaceArray(): FormArray { return this.form.get('tableSpaces') as FormArray; }
     get serverErrorArray(): FormArray { return this.form.get('serverErrors') as FormArray; }
     get availabilityGroupArray(): FormArray { return this.form.get('availabilityGroups') as FormArray; }
-    get backupTypesArray(): FormArray { return (this.form.get('backupPolicy') as FormGroup).get('backupTypes') as FormArray; }
+    getInstanceBackupTypesArray(instanceIndex: number): FormArray {
+        return this.instanceArray.at(instanceIndex).get('backupTypes') as FormArray;
+    }
 
-    addInstance(name = '', isSynchronized = false, id = null, files: any[] = []) {
+    addInstance(name = '', isSynchronized = false, id = null, files: any[] = [], backupTypes: any[] = []) {
         const group = this.fb.group({
             id: [id],
             name: [name, Validators.required],
             isSynchronized: [isSynchronized],
-            files: this.fb.array([])
+            files: this.fb.array([]),
+            backupTypes: this.fb.array([])
         });
         this.instanceArray.push(group);
 
@@ -439,6 +444,9 @@ export class ServerFormComponent implements OnInit {
         if (files && files.length > 0) {
             files.forEach(f => this.addInstanceFile(instanceIndex, f.fileName, f.size, f.autoExtensible, f.comment, f.id));
         }
+        (backupTypes || []).forEach((bt: any) =>
+            this.addBackupType(instanceIndex, bt.typeBackup, bt.storagePath, bt.selectedDays, bt.scheduleStartTime, bt.id, bt)
+        );
 
         const sub = group.get('name')?.valueChanges.subscribe(() => {
             this.refreshInstanceOptions();
@@ -523,7 +531,7 @@ export class ServerFormComponent implements OnInit {
         const date = group.get('appearanceDateOnly')?.value;
         const time = group.get('appearanceTimeOnly')?.value;
         if (!date || !time) return null;
-        
+
         const combined = new Date(`${date}T${time}`);
         if (combined.getTime() > Date.now()) {
             return { futureDateTime: true };
@@ -532,20 +540,41 @@ export class ServerFormComponent implements OnInit {
     }
     removeServerError(i: number) { this.serverErrorArray.removeAt(i); }
 
-    addBackupType(typeBackup = 'FULL', storagePath = '', selectedDays: string | string[] = '', scheduleStartTime = '', scheduleEndTime = '', id = null) {
+    addBackupType(instanceIndex: number, typeBackup = 'FULL', storagePath = '', selectedDays: string | string[] = '', scheduleStartTime = '', id = null, source: any = {}) {
+        const knownType = this.backupTypeSuggestions.some(option => option.value === typeBackup);
         let daysArr: string[] = [];
         if (selectedDays) {
             daysArr = Array.isArray(selectedDays) ? selectedDays : selectedDays.split(',');
         }
-        this.backupTypesArray.push(this.fb.group({
-            id: [id], typeBackup: [typeBackup, Validators.required],
+        this.getInstanceBackupTypesArray(instanceIndex).push(this.fb.group({
+            id: [id], typeBackup: [knownType ? typeBackup : 'CUSTOM', Validators.required],
+            customType: [knownType ? '' : typeBackup],
             storagePath: [storagePath],
-            selectedDays: [daysArr, Validators.required],
-            scheduleStartTime: [scheduleStartTime, Validators.required],
-            scheduleEndTime: [scheduleEndTime, Validators.required]
-        }, { validators: [this.backupTimeRangeValidator.bind(this)] }));
+            selectedDays: [daysArr],
+            scheduleStartTime: [scheduleStartTime],
+            scheduleType: [source.scheduleType || 'RECURRING'],
+            enabled: [source.enabled !== false],
+            oneTimeDate: [source.oneTimeDate || ''],
+            oneTimeTime: [source.oneTimeTime || ''],
+            dailyFrequencyMode: [source.dailyFrequencyMode === 'ONCE'
+                ? 'DAILY'
+                : (source.dailyFrequencyMode || (source.scheduleType === 'ONE_TIME' ? 'ONE_TIME' : 'DAILY'))],
+            intervalHours: [source.intervalHours || source.recurrenceInterval || 1, [Validators.min(1)]],
+            dailyStartTime: [source.dailyStartTime || scheduleStartTime],
+            dailyEndTime: [source.dailyEndTime || '']
+        }));
     }
-    removeBackupType(i: number) { this.backupTypesArray.removeAt(i); }
+    removeBackupType(instanceIndex: number, typeIndex: number) {
+        const types = this.getInstanceBackupTypesArray(instanceIndex);
+        const type = types.at(typeIndex);
+        const typeName = type.get('customType')?.value || type.get('typeBackup')?.value || 'ce type';
+        const existingId = type.get('id')?.value;
+        if (existingId && !confirm(`Supprimer définitivement « ${typeName} » de la base de données ?`)) {
+            return;
+        }
+        types.removeAt(typeIndex);
+        this.form.markAsDirty();
+    }
 
     addAvailabilityGroup(groupName = '', groupStatus = 'PRIMARY', id = null) {
         this.availabilityGroupArray.push(this.fb.group({
@@ -568,15 +597,10 @@ export class ServerFormComponent implements OnInit {
             return;
         }
 
-        if (this.form.get('backupEnabled')?.value && this.backupTypesArray.length === 0) {
-            this.snackBar.open('⚠️ Backup depends on at least one type.', 'Close', { duration: 4000 });
-            return;
-        }
-
-        const message = this.isEdit 
-            ? 'Voulez-vous vraiment mettre à jour ce serveur ?' 
+        const message = this.isEdit
+            ? 'Voulez-vous vraiment mettre à jour ce serveur ?'
             : (this.isCloneMode ? 'Voulez-vous vraiment créer une copie de ce serveur ?' : 'Voulez-vous vraiment créer ce serveur ?');
-        
+
         if (!confirm(message)) return;
 
         this.saving = true;
@@ -596,7 +620,7 @@ export class ServerFormComponent implements OnInit {
             formCpu: this.form.get('cpu')?.value,
             payloadCpu: payload.cpu
         });
-        
+
         const formatDateTime = (dateValue: any) => {
             if (!dateValue) return null;
             const d = new Date(dateValue);
@@ -606,11 +630,22 @@ export class ServerFormComponent implements OnInit {
             return adjustedDate.toISOString().slice(0, 16);
         };
 
-        if (payload.backupPolicy?.backupTypes) {
-             payload.backupPolicy.backupTypes = payload.backupPolicy.backupTypes.map((bt: any) => ({
-                 ...bt,
-                 selectedDays: Array.isArray(bt.selectedDays) ? bt.selectedDays.join(',') : bt.selectedDays
-             }));
+        payload.instances = (payload.instances || []).map((instance: any) => ({
+            ...instance,
+            backupTypes: (instance.backupTypes || []).map((bt: any) => ({
+                        ...bt,
+                        typeBackup: bt.typeBackup === 'CUSTOM' ? bt.customType : bt.typeBackup,
+                        selectedDays: Array.isArray(bt.selectedDays) ? bt.selectedDays.join(',') : bt.selectedDays
+                    }))
+        }));
+        const hasInstanceBackupTypes = (payload.instances || []).some((instance: any) => instance.backupTypes?.length);
+        if (payload.backupPolicy && (!payload.backupPolicy.policyName || !payload.backupPolicy.backupAddress) && !hasInstanceBackupTypes) {
+            payload.backupPolicy = null;
+        } else if (payload.backupPolicy) {
+            payload.backupPolicy = {
+                ...payload.backupPolicy,
+                backupTypes: undefined
+            };
         }
 
         if (payload.serverErrors) {
@@ -625,11 +660,10 @@ export class ServerFormComponent implements OnInit {
              });
         }
 
-        if (!payload.backupEnabled) payload.backupPolicy = null;
         if (!payload.clusterId) {
              payload.clusterRole = null;
         }
-        
+
         if (!payload.availabilityGroupEnabled) {
              payload.availabilityGroups = [];
         }
@@ -666,7 +700,7 @@ export class ServerFormComponent implements OnInit {
 
         const platformIdRaw = this.route.snapshot.queryParamMap.get('platformId');
         const parsedId = platformIdRaw ? Number(platformIdRaw) : NaN;
-        
+
         // Use provided platformId or fallback to the server's platform
         this.sourcePlatformId = !Number.isNaN(parsedId) ? parsedId : null;
 
@@ -696,7 +730,10 @@ export class ServerFormComponent implements OnInit {
         const msg = (message || '').toLowerCase();
         if (msg.includes('hostname')) { this.form.get('hostname')?.setErrors({ backendUnique: true }); this.form.get('hostname')?.markAsTouched(); }
         if (msg.includes('ip address') || msg.includes('ipaddress') || msg.includes('adresse ip')) { this.form.get('ipAddress')?.setErrors({ backendUnique: true }); this.form.get('ipAddress')?.markAllAsTouched(); }
-        if (msg.includes('policy') || msg.includes('politique')) { this.form.get('backupPolicy')?.get('policyName')?.setErrors({ backendUnique: true }); this.form.get('backupPolicy')?.get('policyName')?.markAsTouched(); }
+        if ((msg.includes('policy') || msg.includes('politique')) && msg.includes('existe')) {
+            this.form.get('backupPolicy')?.get('policyName')?.setErrors({ backendUnique: true });
+            this.form.get('backupPolicy')?.get('policyName')?.markAsTouched();
+        }
     }
 
     validateBeforeSave(): string | null {
@@ -707,9 +744,6 @@ export class ServerFormComponent implements OnInit {
         const platformIds = this.form.get('platformIds')?.value as number[] | null;
         if (clusterId && Array.isArray(platformIds) && platformIds.length > 1) {
             return 'Impossible d\'assigner plusieurs plateformes: ce serveur est sous cluster/réplication.';
-        }
-        if (this.backupTypesArray.controls.some(c => c.hasError('invalidBackupTimeRange'))) {
-            return 'La plage horaire backup est invalide: l\'heure de début doit être avant l\'heure de fin.';
         }
         return null;
     }
@@ -890,13 +924,6 @@ export class ServerFormComponent implements OnInit {
         group?.markAsDirty();
     }
 
-    isBackupTimeRangeInvalid(index: number): boolean {
-        const group = this.backupTypesArray.at(index);
-        if (!group) return false;
-        const touched = group.get('scheduleStartTime')?.touched || group.get('scheduleEndTime')?.touched;
-        return !!group.hasError('invalidBackupTimeRange') && !!touched;
-    }
-
     private normalizeForUnique(value: unknown): string {
         return (value ?? '').toString().trim().toLowerCase();
     }
@@ -947,18 +974,16 @@ export class ServerFormComponent implements OnInit {
 
     private preparePayloadForCreate(payload: any): void {
         payload.id = null;
-        payload.instances = (payload.instances || []).map((i: any) => ({ ...i, id: null }));
+        payload.instances = (payload.instances || []).map((i: any) => ({
+            ...i,
+            id: null,
+            files: (i.files || []).map((file: any) => ({ ...file, id: null })),
+            backupTypes: (i.backupTypes || []).map((bt: any) => ({ ...bt, id: null }))
+        }));
         payload.disks = (payload.disks || []).map((d: any) => ({ ...d, id: null }));
         payload.tableSpaces = (payload.tableSpaces || []).map((ts: any) => ({ ...ts, id: null }));
         payload.serverErrors = (payload.serverErrors || []).map((e: any) => ({ ...e, id: null }));
         payload.availabilityGroups = (payload.availabilityGroups || []).map((ag: any) => ({ ...ag, id: null }));
-        if (payload.backupPolicy) {
-            payload.backupPolicy.id = null;
-            payload.backupPolicy.backupTypes = (payload.backupPolicy.backupTypes || []).map((bt: any) => ({
-                ...bt,
-                id: null
-            }));
-        }
     }
 
     private getPrimaryPlatformId(platformIds: number[] | null | undefined): number | null {

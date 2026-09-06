@@ -107,7 +107,7 @@
               <mat-option *ngFor="let t of serverTypes" [value]="t.id">{{ t.name }}</mat-option>
             </mat-select>
           </mat-form-field>
-          <button type="button" mat-icon-button color="primary" 
+          <button type="button" mat-icon-button color="primary"
                   style="margin-top: 4px;" (click)="showSTForm = !showSTForm"
                   matTooltip="Ajouter un nouveau type">
             <mat-icon>{{ showSTForm ? 'close' : 'add_circle' }}</mat-icon>
@@ -123,7 +123,7 @@
               </mat-option>
             </mat-select>
           </mat-form-field>
-          <button type="button" mat-icon-button color="primary" 
+          <button type="button" mat-icon-button color="primary"
                   style="margin-top: 4px;" (click)="showOSForm = !showOSForm"
                   matTooltip="Ajouter un nouvel OS">
             <mat-icon>{{ showOSForm ? 'close' : 'add_circle' }}</mat-icon>
@@ -319,7 +319,7 @@
               <mat-option *ngFor="let c of clusters" [value]="c.id">{{ c.name }}</mat-option>
             </mat-select>
           </mat-form-field>
-          <button type="button" mat-icon-button color="primary" 
+          <button type="button" mat-icon-button color="primary"
                   style="margin-top: 4px;" (click)="showClusterForm = !showClusterForm"
                   *ngIf="(form.get('platformIds')?.value?.length || 0) > 0"
                   matTooltip="Ajouter un nouveau Replication / Cluster">
@@ -334,7 +334,7 @@
             <mat-option value="SECONDARY">Secondaire</mat-option>
           </mat-select>
         </mat-form-field>
-   
+
       </div>
 
       <div class="selected-platforms" *ngIf="selectedPlatforms.length > 0">
@@ -488,7 +488,7 @@
     </mat-card-header>
     <mat-card-content>
       <div *ngIf="form.get('tableSpaces')?.hasError('duplicateTableSpaceNames')" class="error-message">
-        <mat-icon>error</mat-icon> Les noms des tablespaces doivent être distincts (insensible à la casse).
+        <mat-icon>error</mat-icon> Les noms des tablespaces doivent être distincts dans chaque instance (insensible à la casse).
       </div>
       <ng-container formArrayName="tableSpaces">
         <div *ngFor="let ts of tableSpaceArray.controls; let i=index" [formGroupName]="i" class="array-row">
@@ -581,7 +581,7 @@
       </div>
       <ng-container formArrayName="instances">
         <div *ngFor="let inst of instanceArray.controls; let i=index" [formGroupName]="i" class="array-row" style="flex-direction: column; align-items: stretch; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 16px; background: #fafafa;">
-          
+
           <!-- Instance Header Row -->
           <div style="display: flex; gap: 16px; align-items: center; margin-bottom: 16px;">
             <mat-form-field appearance="outline" class="flex-2">
@@ -604,7 +604,7 @@
                 <mat-icon>add</mat-icon> Ajouter un Fichier
               </button>
             </div>
-            
+
             <ng-container formArrayName="files">
               <div *ngFor="let file of getInstanceFileArray(i).controls; let j=index" [formGroupName]="j" class="array-row" style="background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px;">
                 <mat-form-field appearance="outline" class="flex-2">
@@ -630,9 +630,125 @@
             <p *ngIf="getInstanceFileArray(i).controls.length === 0" class="empty-hint" style="font-size: 13px; margin-top: 4px; padding: 4px;">Aucun fichier attaché à cette instance.</p>
           </div>
 
+          <div class="instance-backup-section">
+            <div class="backup-types-header">
+              <h5>Types et planification de cette instance</h5>
+              <button type="button" mat-stroked-button color="primary" (click)="addBackupType(i)">
+                <mat-icon>add</mat-icon> Ajouter un type de sauvegarde
+              </button>
+            </div>
+            <ng-container formArrayName="backupTypes">
+              <div *ngFor="let bt of getInstanceBackupTypesArray(i).controls; let j=index" [formGroupName]="j" class="array-row backup-array-row">
+                <div class="backup-type-body">
+                  <div class="backup-type-top-row">
+                    <mat-form-field appearance="outline" class="flex-2">
+                      <mat-label>Type de sauvegarde</mat-label>
+                      <mat-select formControlName="typeBackup">
+                        <mat-option *ngFor="let option of backupTypeSuggestions" [value]="option.value">{{ option.label }}</mat-option>
+                      </mat-select>
+                      <button mat-icon-button matSuffix type="button" matTooltip="Choisissez un type existant ou Personnalisé pour créer votre propre type.">
+                        <mat-icon>help_outline</mat-icon>
+                      </button>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="flex-2" *ngIf="bt.get('typeBackup')?.value === 'CUSTOM'">
+                      <mat-label>Nom du type personnalisé</mat-label>
+                      <input matInput formControlName="customType" placeholder="Ex. Snapshot applicatif">
+                      <button mat-icon-button matSuffix type="button" matTooltip="Nom libre du type de sauvegarde créé par l'utilisateur.">
+                        <mat-icon>help_outline</mat-icon>
+                      </button>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="flex-3">
+                      <mat-label>Chemin de stockage</mat-label>
+                      <input matInput formControlName="storagePath">
+                      <button mat-icon-button matSuffix type="button" matTooltip="Dossier ou emplacement utilisé pour ce type de sauvegarde.">
+                        <mat-icon>help_outline</mat-icon>
+                      </button>
+                    </mat-form-field>
+                    <button type="button" mat-icon-button class="remove-btn backup-remove-btn" (click)="removeBackupType(i, j)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  </div>
+                  <mat-form-field appearance="outline" class="full-width" *ngIf="bt.get('dailyFrequencyMode')?.value === 'WEEKLY' || bt.get('dailyFrequencyMode')?.value === 'INTERVAL'">
+                    <mat-label>Jours d'exécution</mat-label>
+                    <mat-select formControlName="selectedDays" multiple>
+                      <mat-option *ngFor="let day of dayOptions" [value]="day.value">{{ day.label }}</mat-option>
+                    </mat-select>
+                    <button mat-icon-button matSuffix type="button" matTooltip="Choisissez les jours où ce type doit se lancer.">
+                      <mat-icon>help_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <div class="form-row">
+                    <mat-checkbox formControlName="enabled" color="primary">Activé</mat-checkbox>
+                    <mat-form-field appearance="outline" class="flex-2">
+                      <mat-label>Mode de lancement</mat-label>
+                      <mat-select formControlName="dailyFrequencyMode">
+                        <mat-option value="ONE_TIME">Une seule fois à une date et une heure</mat-option>
+                        <mat-option value="DAILY">Chaque jour à une heure précise</mat-option>
+                        <mat-option value="WEEKLY">Chaque semaine, jours précis</mat-option>
+                        <mat-option value="INTERVAL">Toutes les N heures</mat-option>
+                      </mat-select>
+                      <button mat-icon-button matSuffix type="button" matTooltip="Choisissez une exécution unique, quotidienne ou répétée toutes les N heures.">
+                        <mat-icon>help_outline</mat-icon>
+                      </button>
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="flex-1" *ngIf="bt.get('dailyFrequencyMode')?.value === 'ONE_TIME'">
+                      <mat-label>Date d'exécution</mat-label>
+                      <input matInput type="date" formControlName="oneTimeDate">
+                    </mat-form-field>
+                    <mat-form-field appearance="outline" class="flex-1" *ngIf="bt.get('dailyFrequencyMode')?.value === 'INTERVAL'">
+                      <mat-label>Nombre d'heures</mat-label>
+                      <input matInput type="number" min="1" formControlName="intervalHours">
+                    </mat-form-field>
+                  </div>
+                  <div class="time-range-box">
+                    <mat-form-field appearance="outline" class="flex-1">
+                      <mat-label>Heure de lancement</mat-label>
+                      <input matInput type="time" formControlName="scheduleStartTime">
+                      <button mat-icon-button matSuffix type="button" matTooltip="Heure à laquelle le backup démarre. Il n'y a pas d'heure de fin.">
+                        <mat-icon>help_outline</mat-icon>
+                      </button>
+                    </mat-form-field>
+                  </div>
+                </div>
+              </div>
+            </ng-container>
+            <p *ngIf="getInstanceBackupTypesArray(i).controls.length === 0" class="empty-hint">Aucun type de backup configuré.</p>
+          </div>
+
         </div>
       </ng-container>
       <p *ngIf="instanceArray.controls.length === 0" class="empty-hint">Aucune instance configurée.</p>
+      <datalist id="backup-type-suggestions">
+        <option value="FULL"></option>
+        <option value="INC"></option>
+        <option value="DIFF_INC"></option>
+        <option value="TRANSACTION_LOG"></option>
+      </datalist>
+    </mat-card-content>
+  </mat-card>
+
+  <mat-card class="section-card">
+    <mat-card-header>
+      <mat-icon mat-card-avatar class="section-icon">backup</mat-icon>
+      <mat-card-title>Politique globale de sauvegarde</mat-card-title>
+    </mat-card-header>
+    <mat-card-content formGroupName="backupPolicy">
+      <div class="form-row">
+        <mat-form-field appearance="outline" class="flex-1">
+          <mat-label>Nom de la politique (facultatif)</mat-label>
+          <input matInput formControlName="policyName">
+          <mat-error *ngIf="form.get('backupPolicy')?.get('policyName')?.hasError('backendUnique')">Ce nom de politique existe déjà.</mat-error>
+        </mat-form-field>
+        <mat-form-field appearance="outline" class="flex-2">
+          <mat-label>Adresse globale de sauvegarde (facultatif)</mat-label>
+          <input matInput formControlName="backupAddress">
+        </mat-form-field>
+      </div>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Commentaires / Notes de backup</mat-label>
+        <textarea matInput formControlName="generalComment" rows="2"></textarea>
+      </mat-form-field>
+      <p class="empty-hint">L'adresse, le nom et le commentaire sont communs à toutes les instances. Chaque instance garde ses propres types et horaires.</p>
     </mat-card-content>
   </mat-card>
 
@@ -681,107 +797,6 @@
         </div>
       </ng-container>
       <p *ngIf="serverErrorArray.controls.length === 0" class="empty-hint">Aucune erreur manuelle enregistrée.</p>
-    </mat-card-content>
-  </mat-card>
-
-  <!-- ================= SECTION: Backup ================= -->
-  <mat-card class="section-card">
-    <mat-card-header>
-      <mat-icon mat-card-avatar class="section-icon">backup</mat-icon>
-      <mat-card-title>Politique de Sauvegarde</mat-card-title>
-    </mat-card-header>
-    <mat-card-content>
-      <mat-checkbox formControlName="backupEnabled" color="primary" class="backup-checkbox">
-        <strong>Activer la sauvegarde pour ce serveur</strong>
-      </mat-checkbox>
-
-      <div *ngIf="form.get('backupEnabled')?.value" class="backup-fields" formGroupName="backupPolicy">
-        <div class="form-row">
-          <mat-form-field appearance="outline" class="flex-1">
-            <mat-label>Nom de la Politique <span class="required-asterisk">*</span></mat-label>
-            <input matInput formControlName="policyName">
-            <mat-error *ngIf="form.get('backupPolicy')?.get('policyName')?.hasError('backendUnique')">Ce nom de politique existe déjà !</mat-error>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="flex-2">
-            <mat-label>Adresse Globale de Sauvegarde <span class="required-asterisk">*</span></mat-label>
-            <input matInput formControlName="backupAddress">
-          </mat-form-field>
-        </div>
-        <div class="form-row">
-           <mat-form-field appearance="outline" class="full-width">
-              <mat-label>Commentaires / Notes de Backup</mat-label>
-              <textarea matInput formControlName="generalComment" rows="2"></textarea>
-           </mat-form-field>
-        </div>
-
-        <mat-divider class="backup-divider"></mat-divider>
-
-        <div class="backup-types-header">
-          <h4>Types de Sauvegarde & Planification</h4>
-          <button type="button" mat-stroked-button color="primary" (click)="addBackupType()">
-            <mat-icon>add</mat-icon> Ajouter Type de Backup
-          </button>
-        </div>
-
-        <ng-container formArrayName="backupTypes">
-          <div *ngFor="let bt of backupTypesArray.controls; let i=index" [formGroupName]="i" class="array-row backup-array-row">
-            <div class="backup-type-body">
-                <div class="backup-type-top-row">
-                  <mat-form-field appearance="outline" class="flex-2">
-                    <mat-label>Type <span class="required-asterisk">*</span></mat-label>
-                    <mat-select formControlName="typeBackup">
-                      <mat-option *ngFor="let op of backupTypeOptions" [value]="op.value">{{ op.label }}</mat-option>
-                    </mat-select>
-                  </mat-form-field>
-
-                  <mat-form-field appearance="outline" class="flex-3">
-                    <mat-label>Chemin de Stockage (Path)</mat-label>
-                    <input matInput formControlName="storagePath">
-                  </mat-form-field>
-                  
-                  <button type="button" mat-icon-button class="remove-btn backup-remove-btn" (click)="removeBackupType(i)">
-                    <mat-icon>delete</mat-icon>
-                  </button>
-                </div>
-               
-               <div class="backup-type-days-row">
-                 <!-- Days Selection -->
-                 <mat-form-field appearance="outline" class="full-width">
-                   <mat-label>Planification (Jours) <span class="required-asterisk">*</span></mat-label>
-                   <mat-select formControlName="selectedDays" multiple required>
-                     <mat-option *ngFor="let day of dayOptions" [value]="day.value">{{ day.label }}</mat-option>
-                   </mat-select>
-                 </mat-form-field>
-               </div>
-               
-                <div class="time-range-box">
-                   <div class="time-field">
-                     <mat-icon class="time-icon">schedule</mat-icon>
-                     <mat-form-field appearance="outline" class="flex-1">
-                       <mat-label>De (Début)</mat-label>
-                       <input matInput type="time" formControlName="scheduleStartTime" required>
-                     </mat-form-field>
-                   </div>
-                   <div class="time-separator">—</div>
-                   <div class="time-field">
-                     <mat-icon class="time-icon">hourglass_empty</mat-icon>
-                     <mat-form-field appearance="outline" class="flex-1">
-                       <mat-label>À (Fin)</mat-label>
-                       <input matInput type="time" formControlName="scheduleEndTime" required>
-                     </mat-form-field>
-                   </div>
-                </div>
-               <div *ngIf="isBackupTimeRangeInvalid(i)" class="error-message">
-                 <mat-icon>error</mat-icon> Plage horaire invalide: l'heure de début doit être avant l'heure de fin.
-               </div>
-            </div>
-          </div>
-        </ng-container>
-        <p *ngIf="backupTypesArray.controls.length === 0" class="empty-hint" style="margin-top: 16px;">
-          Vous devez ajouter au moins un type de sauvegarde si le backup est activé.
-        </p>
-
-      </div>
     </mat-card-content>
   </mat-card>
 

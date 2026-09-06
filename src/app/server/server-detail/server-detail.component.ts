@@ -143,12 +143,10 @@ export class ServerDetailComponent implements OnInit {
           this.server = data;
           this.initCharts();
           this.loading = false;
-          
-          if (this.server.backupEnabled && this.server.backupPolicy) {
-            this.server.backupPolicy.backupTypes?.forEach((bt: any) => {
-               this.loadHistory(bt.typeBackup, 0, 5);
-            });
-          }
+
+          (this.server.instances || []).forEach((instance: any) => {
+            (instance.backupTypes || []).forEach((bt: any) => this.loadHistory(instance.id, bt, 0, 5));
+          });
         },
         error: () => this.loading = false
       });
@@ -257,7 +255,7 @@ export class ServerDetailComponent implements OnInit {
         borderWidth: 0
       }]
     };
-    
+
     this.ramChartData = {
       labels: ['Used', 'Free'],
       datasets: [{
@@ -332,14 +330,14 @@ export class ServerDetailComponent implements OnInit {
     return gbValue.toFixed(2) + ' GB';
   }
 
-  getBackupTypes() {
-    return this.server?.backupPolicy?.backupTypes || [];
+  getBackupInstances() {
+    return (this.server?.instances || []).filter((instance: any) => instance.backupTypes?.length);
   }
 
   formatDays(daysStr: string): string {
     if (!daysStr) return '—';
     if (daysStr === 'EVERYDAY') return 'Chaque Jour';
-    
+
     const dayMap: { [key: string]: string } = {
         'MON': 'Lundi', 'TUE': 'Mardi', 'WED': 'Mercredi',
         'THU': 'Jeudi', 'FRI': 'Vendredi', 'SAT': 'Samedi', 'SUN': 'Dimanche'
@@ -350,25 +348,30 @@ export class ServerDetailComponent implements OnInit {
                   .join(', ');
   }
 
-  loadHistory(typeBackup: string, page: number, size: number) {
-    const url = `${environment.apiUrl}/servers/${this.server.id}/backup-history?backupType=${typeBackup}&page=${page}&size=${size}&sort=scheduledDate,desc`;
+  historyKey(instanceId: number, typeBackup: any): string {
+    return `${instanceId}_${typeBackup.id}`;
+  }
+
+  loadHistory(instanceId: number, typeBackup: any, page: number, size: number) {
+    const key = this.historyKey(instanceId, typeBackup);
+    const url = `${environment.apiUrl}/servers/${this.server.id}/backup-history?instanceId=${instanceId}&backupTypeEntryId=${typeBackup.id}&page=${page}&size=${size}&sort=scheduledAt,desc`;
     this.http.get<any>(url).subscribe({
       next: (res) => {
-        this.historyData[typeBackup] = (res.content || res.data || []).map((h: any) => ({ ...h, isEditing: false, editComment: h.userComment }));
+        this.historyData[key] = (res.content || res.data || []).map((h: any) => ({ ...h, isEditing: false, editComment: h.userComment }));
         const totalCount = res.totalElements ?? res.total_elements ?? (res.page ? res.page.totalElements : null) ?? (res.page ? res.page.total_elements : null);
-        this.historyTotals[typeBackup] = (totalCount !== null && totalCount !== undefined) ? totalCount : (this.historyData[typeBackup]?.length || 0);
-        this.historyPages[typeBackup] = page;
-        this.historyPageSizes[typeBackup] = size;
+        this.historyTotals[key] = (totalCount !== null && totalCount !== undefined) ? totalCount : (this.historyData[key]?.length || 0);
+        this.historyPages[key] = page;
+        this.historyPageSizes[key] = size;
       }
     });
   }
 
-  getHistoryForCurrentTab(typeBackup: string) {
-    return this.historyData[typeBackup] || [];
+  getHistoryForCurrentTab(instanceId: number, typeBackup: any) {
+    return this.historyData[this.historyKey(instanceId, typeBackup)] || [];
   }
 
-  onHistoryPageChange(typeBackup: string, event: any) {
-    this.loadHistory(typeBackup, event.pageIndex, event.pageSize);
+  onHistoryPageChange(instanceId: number, typeBackup: any, event: any) {
+    this.loadHistory(instanceId, typeBackup, event.pageIndex, event.pageSize);
   }
 
   editHistory(historyItem: any) {
