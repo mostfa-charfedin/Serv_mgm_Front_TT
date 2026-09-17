@@ -1,5 +1,5 @@
-# Image Node.js légère pour compiler l'application Angular.
-FROM node:22-alpine AS build
+# Image Node.js 20 LTS stable pour éviter les deadlocks d'esbuild
+FROM node:20-alpine AS build
 
 # Dossier de travail pour le build front.
 WORKDIR /app
@@ -11,17 +11,21 @@ RUN npm ci
 
 # Copie tout le code source dans l'image de build.
 COPY . .
-# Génère le build de production dans le dossier dist.
+
+# Allocation mémoire contrôlée pour éviter le SIGSEGV
 ENV NODE_OPTIONS="--max-old-space-size=2048"
-RUN npm run build -- --output-path dist --optimization=false
+
+# Génère le build de production (avec le builder par défaut d'Angular 20+)
+RUN npm run build -- --configuration production
 
 # Serveur web Nginx léger pour servir les fichiers statiques.
 FROM nginx:1.27-alpine
 
 # Remplace la configuration par défaut de Nginx.
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-# Copie le build Angular généré vers le répertoire web de Nginx.
-COPY --from=build /app/dist/ /usr/share/nginx/html/
+
+# Copie le build Angular généré (le sous-dossier /browser est obligatoire avec le builder esbuild)
+COPY --from=build /app/dist/server-management-frontend/browser /usr/share/nginx/html
 
 # Déclare le port HTTP du conteneur.
 EXPOSE 80
