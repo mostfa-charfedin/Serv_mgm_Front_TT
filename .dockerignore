@@ -1,0 +1,17 @@
+# Dependencies & Build Output
+node_modules/
+dist/
+.angular/
+.cache/
+
+# Version Control & IDEs
+.git/
+.gitignore
+.vscode/
+.idea/
+
+# CI / Docker Files
+Dockerfile*
+Jenkinsfile
+.dockerignore
+*.md
