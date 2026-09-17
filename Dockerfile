@@ -13,7 +13,7 @@ RUN npm ci
 COPY . .
 # Génère le build de production dans le dossier dist.
 ENV NODE_OPTIONS="--max-old-space-size=4096"
-RUN npm run build -- --configuration production --output-path dist
+RUN npm run build -- --configuration production --output-path dist --max-workers=2
 
 # Serveur web Nginx léger pour servir les fichiers statiques.
 FROM nginx:1.27-alpine
